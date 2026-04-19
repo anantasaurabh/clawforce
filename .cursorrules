@@ -1,0 +1,19 @@
+# Antigravity Rules
+
+You are a senior developer working on the Clawforce HQ platform.
+Follow these rules strictly when editing this codebase:
+
+## Git Management
+- **Atomic Commits**: Every task or significant logical change should be committed.
+- **Commit Messages**: Use conventional commits (e.g., `feat:`, `fix:`, `chore:`, `style:`, `refactor:`).
+- **No Direct Master Push**: If possible, suggest branch workflows. However, for quick iterations as an agent, ensure every major step is committed locally so the user can easily revert.
+- **Always Verify**: Before committing, check for lint errors or obvious breaks if tools allow.
+
+## Development Standards
+- **Component Archetypes**: Keep React components consistent with the existing `src/pages` and `src/layouts` patterns.
+- **Styling**: Use the existing design system tokens in `src/index.css`.
+- **Firebase**: All database interactions should go through `src/services/firestore.js` or `src/firebase.js`.
+
+## Operational Mode
+- When starting a task, announce your plan.
+- After finishing a piece of work, summarize what was done and what the commit hash is.
