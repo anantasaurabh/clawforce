@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-primary: #059669; /* Emerald-600 */
+  --color-brand-secondary: #64748b; /* Slate-500 */
+  --color-brand-accent: #f59e0b; /* Amber-500 */
+  
+  --font-sans: "Nunito", "Inter", "system-ui", "-apple-system", "sans-serif";
+  --font-display: "Jost", "sans-serif";
+
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-3xl: 24px;
+}
+
+@layer base {
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased font-sans;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display font-semibold;
+  }
+}
