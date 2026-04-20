@@ -14,33 +14,33 @@ import AgentDetails from './pages/AgentDetails';
 import Taskboard from './pages/Taskboard';
 
 function App() {
-  return (
-    <AuthProvider>
-      <Router>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/" element={
-            <ProtectedRoute>
-              <DashboardLayout />
-            </ProtectedRoute>
-          }>
-            <Route index element={<Dashboard />} />
-            <Route path="taskforce" element={<Taskforce />} />
-            <Route path="agent/:id" element={<AgentDetails />} />
-            <Route path="taskboard" element={<Taskboard />} />
-            <Route path="users" element={<Users />} />
-            <Route path="agents" element={<Agents />} />
-            <Route path="categories" element={<Categories />} />
-            <Route path="packages" element={<Packages />} />
-            <Route path="settings" element={<Dashboard />} />
-            <Route path="help" element={<Dashboard />} />
-          </Route>
-          {/* Catch all redirect to dashboard */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Router>
-    </AuthProvider>
-  );
+ return (
+  <AuthProvider>
+   <Router>
+    <Routes>
+     <Route path="/login" element={<Login />} />
+     <Route path="/" element={
+      <ProtectedRoute>
+       <DashboardLayout />
+      </ProtectedRoute>
+     }>
+      <Route index element={<Dashboard />} />
+      <Route path="taskforce" element={<Taskforce />} />
+      <Route path="agent/:id" element={<AgentDetails />} />
+      <Route path="taskboard" element={<Taskboard />} />
+      <Route path="users" element={<Users />} />
+      <Route path="agents" element={<Agents />} />
+      <Route path="categories" element={<Categories />} />
+      <Route path="packages" element={<Packages />} />
+      <Route path="settings" element={<Dashboard />} />
+      <Route path="help" element={<Dashboard />} />
+     </Route>
+     {/* Catch all redirect to dashboard */}
+     <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+   </Router>
+  </AuthProvider>
+ );
 }
 
 export default App;

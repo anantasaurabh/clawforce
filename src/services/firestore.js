@@ -7,8 +7,10 @@ import {
   query, 
   where, 
   orderBy, 
+  onSnapshot, 
+  addDoc, 
   serverTimestamp,
-  addDoc,
+  updateDoc,
   deleteDoc
 } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -176,5 +178,25 @@ export const taskService = {
     );
     const snap = await getDocs(q);
     return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  },
+
+  async addComment(taskId, authorRole, content, authorName = '') {
+    const commentsRef = collection(db, COLLECTIONS.TASKS, taskId, 'comments');
+    await addDoc(commentsRef, {
+      role: authorRole, // 'user' or 'agent'
+      authorName,
+      content,
+      timestamp: serverTimestamp()
+    });
+  },
+
+  async updateTask(taskId, data) {
+    const taskRef = doc(db, COLLECTIONS.TASKS, taskId);
+    await updateDoc(taskRef, data);
+  },
+
+  async deleteTask(taskId) {
+    const taskRef = doc(db, COLLECTIONS.TASKS, taskId);
+    await deleteDoc(taskRef);
   }
 };

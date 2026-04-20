@@ -177,7 +177,7 @@ export const seedDatabase = async () => {
     });
   });
 
-  // 5. Initial Tasks (Operational Missions)
+  // 5. Initial Tasks (Operational Tasks)
   const sampleTasks = [
     {
       id: 'task-001',
