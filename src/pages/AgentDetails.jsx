@@ -24,17 +24,20 @@ import {
   Plus,
   Zap,
   ShieldCheck,
+  Link2,
   Info,
   Loader2,
   Terminal
 } from 'lucide-react';
 import { collection, query, where, orderBy, getDocs, doc, getDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
-import { COLLECTIONS } from '../constants/dbPaths';
+import { COLLECTIONS, getUserAuthsPath } from '../constants/dbPaths';
 import { catalogService, configService, taskService } from '../services/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { OAUTH_PROVIDERS } from '../constants/oauthProviders';
+import { getUserAuthsPath } from '../constants/dbPaths';
 
 function cn(...inputs) {
   return twMerge(clsx(inputs));
@@ -55,6 +58,8 @@ export default function AgentDetails() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortConfig, setSortConfig] = useState({ key: 'startTime', direction: 'desc' });
+  const [authResult, setAuthResult] = useState(null);
+  const [userAuthorizations, setUserAuthorizations] = useState({});
 
   // Deployment Modal State
   const [showDeployModal, setShowDeployModal] = useState(false);
@@ -97,6 +102,18 @@ export default function AgentDetails() {
         getDoc(agentRef),
         catalogService.getCategories()
       ]);
+
+      const searchParams = new URLSearchParams(window.location.search);
+      const authStatus = searchParams.get('auth_status');
+      if (authStatus) {
+        // We'll use a local state to show the modal
+        setAuthResult({
+          status: authStatus,
+          message: searchParams.get('message')
+        });
+        // Clear params to prevent re-shows on refresh
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
 
       if (!agentSnap.exists()) {
         navigate('/taskforce');
@@ -148,6 +165,26 @@ export default function AgentDetails() {
 
     return () => unsubscribe();
   }, [id, currentUser]);
+
+  // Live Authorizations Listener
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const authsPath = getUserAuthsPath(currentUser.uid);
+    const authsRef = collection(db, authsPath);
+    
+    const unsubscribe = onSnapshot(authsRef, (snapshot) => {
+      const authsMap = {};
+      snapshot.forEach(doc => {
+        authsMap[doc.id] = doc.data();
+      });
+      setUserAuthorizations(authsMap);
+    }, (err) => {
+      console.warn('Authorizations listener error:', err);
+    });
+
+    return () => unsubscribe();
+  }, [currentUser]);
 
   // Live Sub-collections Listener (Logs & Comments for Selected Task)
   useEffect(() => {
@@ -644,6 +681,59 @@ export default function AgentDetails() {
                 </div>
               </div>
 
+              {agent.requiredAuths && agent.requiredAuths.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Link2 size={16} className="text-emerald-600" />
+                    <h4 className="font-black text-slate-900 uppercase tracking-widest text-xs">Protocol Authorizations</h4>
+                  </div>
+                  <div className="grid gap-4">
+                    {agent.requiredAuths.map((authId) => {
+                      const provider = OAUTH_PROVIDERS.find(p => p.id === authId);
+                      const authData = userAuthorizations[authId];
+                      const isAuthorized = !!authData;
+                      
+                      return (
+                        <div key={authId} className="flex items-center justify-between p-5 bg-white border border-slate-100 rounded-2xl shadow-sm group hover:border-emerald-100 transition-all">
+                          <div className="flex items-center gap-4">
+                            <div className={cn(
+                              "w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
+                              isAuthorized ? "bg-emerald-50 text-emerald-600" : "bg-slate-50 text-slate-400 group-hover:bg-emerald-50"
+                            )}>
+                              {isAuthorized ? <ShieldCheck size={20} /> : <Link2 size={20} />}
+                            </div>
+                            <div>
+                              <p className="text-[11px] font-black text-slate-900 uppercase tracking-tight">
+                                {provider?.label || authId}
+                              </p>
+                              <p className="text-[10px] font-medium text-slate-500">
+                                {isAuthorized 
+                                  ? `Authorized: ${authData.updatedAt?.toDate ? authData.updatedAt.toDate().toLocaleDateString() : 'Active'}`
+                                  : 'Handshake Required'}
+                              </p>
+                            </div>
+                          </div>
+                          
+                          {isAuthorized ? (
+                             <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-[10px] font-black uppercase tracking-widest">
+                               <CheckCircle2 size={12} />
+                               Active
+                             </div>
+                          ) : (
+                            <button
+                              onClick={() => navigate(`/auth/${authId}?agentId=${id}`)}
+                              className="px-4 py-2 bg-slate-900 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/10"
+                            >
+                              Authorize
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {agent.instructions && (
                 <div className="p-8 bg-brand-primary/5 rounded-2xl border border-brand-primary/10 relative overflow-hidden group">
                   <div className="absolute top-0 right-0 p-4 text-brand-primary/10 group-hover:text-brand-primary/20 transition-colors">
@@ -1072,6 +1162,45 @@ export default function AgentDetails() {
                   </form>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Auth Result Modal */}
+      {authResult && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setAuthResult(null)} />
+          <div className="bg-white max-w-sm w-full rounded-2xl shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95 duration-300">
+            <div className="p-8 text-center space-y-6">
+              <div className={cn(
+                "w-20 h-20 rounded-full flex items-center justify-center mx-auto",
+                authResult.status === 'success' ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"
+              )}>
+                {authResult.status === 'success' ? <CheckCircle2 size={40} /> : <AlertCircle size={40} />}
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">
+                  {authResult.status === 'success' ? 'Authorization Success' : 'Authorization Failed'}
+                </h3>
+                <p className="text-slate-500 text-sm font-medium leading-relaxed">
+                  {authResult.status === 'success' 
+                    ? 'Your LinkedIn credentials have been securely provisioned to this agent.'
+                    : authResult.message || 'We could not complete the authorization handshake.'}
+                </p>
+              </div>
+
+              <button
+                onClick={() => setAuthResult(null)}
+                className={cn(
+                  "w-full py-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-lg",
+                  authResult.status === 'success' 
+                    ? "bg-slate-900 text-white hover:bg-slate-800 shadow-slate-900/20" 
+                    : "bg-red-600 text-white hover:bg-red-700 shadow-red-600/20"
+                )}
+              >
+                {authResult.status === 'success' ? 'Continue Operations' : 'Dismiss'}
+              </button>
             </div>
           </div>
         </div>

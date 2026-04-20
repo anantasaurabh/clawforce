@@ -9,3 +9,4 @@ export const COLLECTIONS = {
 };
 
 export const getUserConfigPath = (userId) => `artifacts/${APP_ID}/userConfigs/${userId}/agentSettings`;
+export const getUserAuthsPath = (userId) => `artifacts/${APP_ID}/userAuthorizations/${userId}`;

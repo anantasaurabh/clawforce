@@ -12,6 +12,7 @@ import Agents from './pages/Agents';
 import Taskforce from './pages/Taskforce';
 import AgentDetails from './pages/AgentDetails';
 import Taskboard from './pages/Taskboard';
+import OAuthBridge from './pages/OAuthBridge';
 
 function App() {
  return (
@@ -32,6 +33,7 @@ function App() {
       <Route path="agents" element={<Agents />} />
       <Route path="categories" element={<Categories />} />
       <Route path="packages" element={<Packages />} />
+      <Route path="auth/:provider" element={<OAuthBridge />} />
       <Route path="settings" element={<Dashboard />} />
       <Route path="help" element={<Dashboard />} />
      </Route>

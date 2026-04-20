@@ -1,7 +1,7 @@
 import admin from 'firebase-admin';
 import { spawn } from 'child_process';
 import dotenv from 'dotenv';
-import { COLLECTIONS, getUserConfigPath } from './constants.js';
+import { COLLECTIONS, getUserConfigPath, getUserAuthsPath } from './constants.js';
 
 dotenv.config();
 
@@ -54,6 +54,17 @@ async function processTask(taskId, task) {
   const settingsDoc = await db.collection(settingsPath).doc(agentId).get();
   const settings = settingsDoc.exists ? settingsDoc.data() : {};
 
+  // 2.1 Fetch Global User Authorizations (OAuth Tokens)
+  const authsPath = getUserAuthsPath(ownerId);
+  const authsSnap = await db.collection(authsPath).get();
+  const authorizations = {};
+  authsSnap.forEach(doc => {
+    const data = doc.data();
+    if (data.credentials) {
+      Object.assign(authorizations, data.credentials);
+    }
+  });
+
   console.log(`[Task ${taskId}] Spawning OpenClaw for agent: ${agentId}`);
 
   // 3. Prepare OpenClaw Command
@@ -62,6 +73,7 @@ async function processTask(taskId, task) {
   const env = {
     ...process.env,
     ...settings, // Pass user settings as env vars
+    ...authorizations, // Pass shared OAuth tokens as env vars
     OPENCLAW_TASK_ID: taskId
   };
 

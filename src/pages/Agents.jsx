@@ -29,6 +29,7 @@ import { useAuth } from '../contexts/AuthContext';
 import RichTextEditor from '../components/RichTextEditor';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { OAUTH_PROVIDERS } from '../constants/oauthProviders';
 
 function cn(...inputs) {
   return twMerge(clsx(inputs));
@@ -259,7 +260,8 @@ function AgentModal({ agent, categories, onClose, onSuccess }) {
     tier: agent?.tier || 'basic',
     imageUrl: agent?.imageUrl || '',
     configSchema: Array.isArray(agent?.configSchema) ? agent.configSchema : [],
-    instructions: agent?.instructions || ''
+    instructions: agent?.instructions || '',
+    requiredAuths: Array.isArray(agent?.requiredAuths) ? agent.requiredAuths : []
   });
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(agent?.imageUrl || '');
@@ -422,6 +424,35 @@ function AgentModal({ agent, categories, onClose, onSuccess }) {
                       <option key={c.id} value={c.id}>{c.label}</option>
                     ))}
                   </select>
+                </div>
+              </div>
+
+              <div className="space-y-4 pt-4 border-t border-slate-100">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck size={14} className="text-emerald-600" />
+                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Required Authorizations</span>
+                </div>
+                <div className="space-y-2">
+                  {OAUTH_PROVIDERS.map((provider) => (
+                    <label key={provider.id} className="flex items-center gap-3 p-3 rounded-xl border border-slate-50 bg-white hover:border-emerald-100 transition-all cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={formData.requiredAuths.includes(provider.id)}
+                        onChange={(e) => {
+                          const current = [...formData.requiredAuths];
+                          if (e.target.checked) {
+                            setFormData({ ...formData, requiredAuths: [...current, provider.id] });
+                          } else {
+                            setFormData({ ...formData, requiredAuths: current.filter(id => id !== provider.id) });
+                          }
+                        }}
+                        className="w-4 h-4 rounded border-slate-200 text-emerald-600 focus:ring-emerald-600/20"
+                      />
+                      <span className="text-[11px] font-bold text-slate-600 group-hover:text-slate-900 transition-colors uppercase tracking-tight">
+                        {provider.label}
+                      </span>
+                    </label>
+                  ))}
                 </div>
               </div>
             </div>
