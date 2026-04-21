@@ -1,0 +1,4 @@
+# ClawForce Early Preview Leads
+# Format: timestamp | name | email | company | message
+# ──────────────────────────────────────────────────────
+2026-04-21T06:01:36.133Z | Test User | test@example.com | TestCo | Testing lead capture

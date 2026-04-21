@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Primary SEO -->
+  <title>ClawForce — Autonomous AI Agents That Execute Real Business Tasks</title>
+  <meta name="description" content="ClawForce deploys autonomous AI agents that execute real business tasks — from social media management to data research — without human supervision. Request early preview access today." />
+  <meta name="keywords" content="AI agents, autonomous agents, AI automation, business automation, AI workforce, ClawForce, task automation, AI assistant, agentic AI, autonomous AI platform" />
+  <meta name="author" content="ClawForce by Altovation" />
+  <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large" />
+  <link rel="canonical" href="https://dev-clawforce.altovation.in/" />
+
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://dev-clawforce.altovation.in/" />
+  <meta property="og:title" content="ClawForce — Your Autonomous AI Workforce" />
+  <meta property="og:description" content="Deploy autonomous AI agents that execute real business tasks end-to-end. No supervision required." />
+  <meta property="og:site_name" content="ClawForce" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="ClawForce — Autonomous AI Agents for Business" />
+  <meta name="twitter:description" content="Deploy AI agents that autonomously execute real business tasks — social media, research, outreach, and more." />
+
+  <!-- AEO: JSON-LD Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "ClawForce",
+    "applicationCategory": "BusinessApplication",
+    "operatingSystem": "Web",
+    "description": "ClawForce is an autonomous AI agent orchestration platform that deploys specialized agents to execute real business tasks without human supervision.",
+    "url": "https://dev-clawforce.altovation.in",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD",
+      "description": "Early Preview — Free Access"
+    },
+    "creator": {
+      "@type": "Organization",
+      "name": "Altovation",
+      "url": "https://altovation.in"
+    }
+  }
+  </script>
+
+  <!-- AEO: FAQ Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "What is ClawForce?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "ClawForce is an autonomous AI agent orchestration platform. It deploys specialized AI agents that independently execute real business tasks — from managing social media accounts and generating content to conducting market research and automating outreach — all without the need for constant human supervision."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How do ClawForce AI agents work?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Each ClawForce agent is a specialized autonomous AI unit designed for a specific business function. You simply assign a task through the ClawForce HQ dashboard, and the agent executes it end-to-end: connecting to required services via secure OAuth, processing the task with real-time telemetry, and delivering results — all autonomously."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What tasks can ClawForce agents perform?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "ClawForce agents can perform a wide range of business tasks including social media posting and scheduling, content creation and copywriting, market and competitor research, email outreach automation, data extraction and analysis, and more. New agent capabilities are continuously being added."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is ClawForce free to use?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "ClawForce is currently in early preview. You can request free access by signing up on our landing page. Early preview users will get first access to the platform and all its agent capabilities at no cost during the preview period."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is my data secure with ClawForce?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Absolutely. ClawForce uses AES-256 encryption for all stored credentials, secure OAuth 2.0 for third-party service connections, and operates on isolated per-user data vaults in Google Cloud Firestore. Your API keys and tokens are never shared between users."
+        }
+      }
+    ]
+  }
+  </script>
+
+  <!-- Organization Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "ClawForce",
+    "url": "https://dev-clawforce.altovation.in",
+    "description": "Autonomous AI Agent Orchestration Platform",
+    "parentOrganization": {
+      "@type": "Organization",
+      "name": "Altovation",
+      "url": "https://altovation.in"
+    }
+  }
+  </script>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Federo&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- NAVIGATION -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <nav id="main-nav" class="nav">
+    <div class="nav-inner">
+      <a href="/" class="nav-brand" aria-label="ClawForce Home">
+        <span class="nav-logo">🐾</span>
+        <span class="nav-wordmark">Claw<span class="accent">Force</span></span>
+      </a>
+      <div class="nav-links" id="nav-links">
+        <a href="#agents" class="nav-link">Agents</a>
+        <a href="#features" class="nav-link">Features</a>
+        <a href="#how-it-works" class="nav-link">How It Works</a>
+        <a href="#faq" class="nav-link">FAQ</a>
+      </div>
+      <a href="#cta" class="nav-cta" id="nav-cta-btn">Request Preview</a>
+      <button class="nav-toggle" id="nav-toggle" aria-label="Toggle navigation">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- HERO -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <header id="hero" class="hero">
+    <div class="hero-bg">
+      <div class="hero-gradient"></div>
+      <div class="hero-grid"></div>
+      <div class="hero-orb hero-orb--1"></div>
+      <div class="hero-orb hero-orb--2"></div>
+      <div class="hero-orb hero-orb--3"></div>
+    </div>
+    <div class="hero-content">
+      <div class="hero-badge" data-animate="fade-up">
+        <span class="badge-dot"></span>
+        Early Preview — Now Open
+      </div>
+      <h1 class="hero-title" data-animate="fade-up" data-delay="100">
+        Your Autonomous<br/><span class="gradient-text">AI Workforce</span>
+      </h1>
+      <p class="hero-subtitle" data-animate="fade-up" data-delay="200">
+        Deploy specialized AI agents that execute real business tasks end-to-end — from social media management to market research — without human supervision.
+      </p>
+      <div class="hero-actions" data-animate="fade-up" data-delay="300">
+        <a href="#cta" class="btn btn-primary btn-lg">
+          <span>Request Early Preview</span>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+        </a>
+        <a href="#how-it-works" class="btn btn-ghost btn-lg">
+          See How It Works
+        </a>
+      </div>
+      <div class="hero-stats" data-animate="fade-up" data-delay="400">
+        <div class="stat">
+          <span class="stat-value" data-count="100">0</span><span class="stat-suffix">%</span>
+          <span class="stat-label">Autonomous</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat">
+          <span class="stat-value" data-count="24">0</span><span class="stat-suffix">/7</span>
+          <span class="stat-label">Always Running</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat">
+          <span class="stat-value" data-count="0">0</span><span class="stat-suffix"> Code</span>
+          <span class="stat-label">No-Code Setup</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- SOCIAL PROOF TICKER -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <section class="ticker-section">
+    <div class="ticker-track">
+      <div class="ticker-content">
+        <span class="ticker-item">🤖 Social Media Automation</span>
+        <span class="ticker-dot">◆</span>
+        <span class="ticker-item">📊 Market Research</span>
+        <span class="ticker-dot">◆</span>
+        <span class="ticker-item">✍️ Content Generation</span>
+        <span class="ticker-dot">◆</span>
+        <span class="ticker-item">📧 Email Outreach</span>
+        <span class="ticker-dot">◆</span>
+        <span class="ticker-item">🔍 Data Extraction</span>
+        <span class="ticker-dot">◆</span>
+        <span class="ticker-item">📈 Analytics Reporting</span>
+        <span class="ticker-dot">◆</span>
+        <span class="ticker-item">🎯 Lead Generation</span>
+        <span class="ticker-dot">◆</span>
+        <span class="ticker-item">💬 Customer Support</span>
+        <span class="ticker-dot">◆</span>
+        <!-- Duplicate for seamless loop -->
+        <span class="ticker-item">🤖 Social Media Automation</span>
+        <span class="ticker-dot">◆</span>
+        <span class="ticker-item">📊 Market Research</span>
+        <span class="ticker-dot">◆</span>
+        <span class="ticker-item">✍️ Content Generation</span>
+        <span class="ticker-dot">◆</span>
+        <span class="ticker-item">📧 Email Outreach</span>
+        <span class="ticker-dot">◆</span>
+        <span class="ticker-item">🔍 Data Extraction</span>
+        <span class="ticker-dot">◆</span>
+        <span class="ticker-item">📈 Analytics Reporting</span>
+        <span class="ticker-dot">◆</span>
+        <span class="ticker-item">🎯 Lead Generation</span>
+        <span class="ticker-dot">◆</span>
+        <span class="ticker-item">💬 Customer Support</span>
+        <span class="ticker-dot">◆</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- AGENTS SHOWCASE -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <section id="agents" class="section agents-section">
+    <div class="container">
+      <div class="section-header" data-animate="fade-up">
+        <span class="section-tag">Agent Roster</span>
+        <h2 class="section-title">Meet Your <span class="gradient-text">AI Taskforce</span></h2>
+        <p class="section-subtitle">
+          Each agent is a specialized autonomous unit, purpose-built for a specific business function. Deploy them solo or as a coordinated squad.
+        </p>
+      </div>
+      <div class="agents-grid" id="agents-grid">
+        <!-- Agents loaded dynamically from Firestore -->
+        <div class="agents-loading" id="agents-loading">
+          <div class="loader-pulse"></div>
+          <p>Initializing Taskforce...</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- FEATURES -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <section id="features" class="section features-section">
+    <div class="container">
+      <div class="section-header" data-animate="fade-up">
+        <span class="section-tag">Platform Capabilities</span>
+        <h2 class="section-title">Built for <span class="gradient-text">Serious Automation</span></h2>
+        <p class="section-subtitle">Enterprise-grade infrastructure wrapped in a beautiful, intuitive interface.</p>
+      </div>
+      <div class="features-grid" data-animate="fade-up" data-delay="200">
+        <article class="feature-card" id="feature-autonomous">
+          <div class="feature-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+          </div>
+          <h3 class="feature-title">Fully Autonomous Execution</h3>
+          <p class="feature-desc">Agents execute complete tasks end-to-end without human supervision. Assign a task, and it gets done — automatically.</p>
+        </article>
+        <article class="feature-card" id="feature-security">
+          <div class="feature-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <h3 class="feature-title">AES-256 Encrypted Vault</h3>
+          <p class="feature-desc">All credentials and API keys are stored in encrypted, per-user operational vaults. Your secrets never leave your isolated environment.</p>
+        </article>
+        <article class="feature-card" id="feature-telemetry">
+          <div class="feature-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          </div>
+          <h3 class="feature-title">Real-Time Telemetry</h3>
+          <p class="feature-desc">Watch agents work in real-time with live system logs, progress tracking, and bi-directional communication from the mission dashboard.</p>
+        </article>
+        <article class="feature-card" id="feature-oauth">
+          <div class="feature-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          </div>
+          <h3 class="feature-title">OAuth 2.0 Integration</h3>
+          <p class="feature-desc">Securely authorize agents to act on your behalf across platforms like LinkedIn, Twitter, and more — with a single-click OAuth flow.</p>
+        </article>
+        <article class="feature-card" id="feature-nocode">
+          <div class="feature-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          </div>
+          <h3 class="feature-title">No-Code Dashboard</h3>
+          <p class="feature-desc">Configure, deploy, and monitor agents through a stunning visual command center. Zero coding required — just point and execute.</p>
+        </article>
+        <article class="feature-card" id="feature-scale">
+          <div class="feature-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <h3 class="feature-title">Multi-Agent Orchestration</h3>
+          <p class="feature-desc">Deploy multiple agents as a coordinated taskforce. Scale your AI workforce from one agent to an entire autonomous team.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- HOW IT WORKS -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <section id="how-it-works" class="section how-section">
+    <div class="container">
+      <div class="section-header" data-animate="fade-up">
+        <span class="section-tag">Getting Started</span>
+        <h2 class="section-title">Three Steps to <span class="gradient-text">Automation</span></h2>
+        <p class="section-subtitle">From sign-up to fully autonomous task execution in minutes.</p>
+      </div>
+      <div class="steps-grid" data-animate="fade-up" data-delay="200">
+        <div class="step-card" id="step-1">
+          <div class="step-number">01</div>
+          <div class="step-content">
+            <h3 class="step-title">Choose Your Agent</h3>
+            <p class="step-desc">Browse the agent roster and select the autonomous specialist that matches your business need — social media, research, outreach, or more.</p>
+          </div>
+          <div class="step-line"></div>
+        </div>
+        <div class="step-card" id="step-2">
+          <div class="step-number">02</div>
+          <div class="step-content">
+            <h3 class="step-title">Configure & Authorize</h3>
+            <p class="step-desc">Securely connect your accounts through OAuth and provide any required credentials. One-time setup, encrypted and private.</p>
+          </div>
+          <div class="step-line"></div>
+        </div>
+        <div class="step-card" id="step-3">
+          <div class="step-number">03</div>
+          <div class="step-content">
+            <h3 class="step-title">Deploy & Monitor</h3>
+            <p class="step-desc">Assign tasks and watch your agents execute autonomously through the real-time mission dashboard. Full telemetry, zero supervision.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- FAQ (AEO Optimized) -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <section id="faq" class="section faq-section">
+    <div class="container">
+      <div class="section-header" data-animate="fade-up">
+        <span class="section-tag">Questions & Answers</span>
+        <h2 class="section-title">Frequently Asked <span class="gradient-text">Questions</span></h2>
+      </div>
+      <div class="faq-list" data-animate="fade-up" data-delay="100">
+        <details class="faq-item" id="faq-what-is">
+          <summary class="faq-question">
+            <span>What is ClawForce?</span>
+            <svg class="faq-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </summary>
+          <div class="faq-answer">
+            <p>ClawForce is an autonomous AI agent orchestration platform. It deploys specialized AI agents that independently execute real business tasks — from managing social media accounts and generating content to conducting market research and automating outreach — all without the need for constant human supervision.</p>
+          </div>
+        </details>
+        <details class="faq-item" id="faq-how-work">
+          <summary class="faq-question">
+            <span>How do ClawForce AI agents work?</span>
+            <svg class="faq-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </summary>
+          <div class="faq-answer">
+            <p>Each ClawForce agent is a specialized autonomous AI unit designed for a specific business function. You simply assign a task through the ClawForce HQ dashboard, and the agent executes it end-to-end: connecting to required services via secure OAuth, processing the task with real-time telemetry, and delivering results — all autonomously.</p>
+          </div>
+        </details>
+        <details class="faq-item" id="faq-tasks">
+          <summary class="faq-question">
+            <span>What tasks can ClawForce agents perform?</span>
+            <svg class="faq-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </summary>
+          <div class="faq-answer">
+            <p>ClawForce agents can perform a wide range of business tasks including social media posting and scheduling, content creation and copywriting, market and competitor research, email outreach automation, data extraction and analysis, and more. New agent capabilities are continuously being added to the platform.</p>
+          </div>
+        </details>
+        <details class="faq-item" id="faq-pricing">
+          <summary class="faq-question">
+            <span>Is ClawForce free to use?</span>
+            <svg class="faq-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </summary>
+          <div class="faq-answer">
+            <p>ClawForce is currently in early preview. You can request free access by signing up on this page. Early preview users will get first access to the platform and all its agent capabilities at no cost during the preview period.</p>
+          </div>
+        </details>
+        <details class="faq-item" id="faq-security">
+          <summary class="faq-question">
+            <span>Is my data secure with ClawForce?</span>
+            <svg class="faq-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </summary>
+          <div class="faq-answer">
+            <p>Absolutely. ClawForce uses AES-256 encryption for all stored credentials, secure OAuth 2.0 for third-party service connections, and operates on isolated per-user data vaults in Google Cloud Firestore. Your API keys and tokens are never shared between users.</p>
+          </div>
+        </details>
+        <details class="faq-item" id="faq-integrate">
+          <summary class="faq-question">
+            <span>What platforms does ClawForce integrate with?</span>
+            <svg class="faq-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </summary>
+          <div class="faq-answer">
+            <p>ClawForce integrates with major business platforms through secure OAuth 2.0 including LinkedIn, Twitter/X, and more. The platform is designed to be extensible — new integrations are added regularly based on community requests.</p>
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- CTA / LEAD CAPTURE -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <section id="cta" class="section cta-section">
+    <div class="container">
+      <div class="cta-card" data-animate="fade-up">
+        <div class="cta-bg">
+          <div class="cta-orb cta-orb--1"></div>
+          <div class="cta-orb cta-orb--2"></div>
+        </div>
+        <div class="cta-content">
+          <span class="section-tag section-tag--light">Limited Preview Slots</span>
+          <h2 class="cta-title">Ready to Deploy Your<br/>AI Workforce?</h2>
+          <p class="cta-subtitle">Join the early preview and be among the first to experience autonomous AI task execution. No credit card required.</p>
+          <form class="cta-form" id="lead-form" novalidate>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="lead-name" class="form-label">Full Name</label>
+                <input type="text" id="lead-name" name="name" class="form-input" placeholder="John Doe" required autocomplete="name" />
+              </div>
+              <div class="form-group">
+                <label for="lead-email" class="form-label">Work Email</label>
+                <input type="email" id="lead-email" name="email" class="form-input" placeholder="john@company.com" required autocomplete="email" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="lead-company" class="form-label">Company <span class="form-optional">(optional)</span></label>
+                <input type="text" id="lead-company" name="company" class="form-input" placeholder="Acme Inc." autocomplete="organization" />
+              </div>
+              <div class="form-group">
+                <label for="lead-message" class="form-label">What do you want to automate? <span class="form-optional">(optional)</span></label>
+                <input type="text" id="lead-message" name="message" class="form-input" placeholder="Social media, research..." />
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary btn-lg btn-full" id="lead-submit">
+              <span class="btn-text">Request Early Preview Access</span>
+              <span class="btn-loading" style="display:none;">
+                <svg class="spinner" width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="31.4 31.4" stroke-linecap="round"><animateTransform attributeName="transform" type="rotate" dur="1s" from="0 12 12" to="360 12 12" repeatCount="indefinite"/></circle></svg>
+                Submitting...
+              </span>
+            </button>
+            <p class="form-notice">🔒 Your information is secure and will never be shared with third parties.</p>
+          </form>
+          <div class="form-success" id="form-success" style="display:none;">
+            <div class="success-icon">✓</div>
+            <h3>You're In!</h3>
+            <p>Welcome to the ClawForce early preview. We'll reach out shortly with your access credentials.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- FOOTER -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <footer class="footer" role="contentinfo">
+    <div class="container">
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <span class="nav-logo">🐾</span>
+          <span class="nav-wordmark">Claw<span class="accent">Force</span></span>
+          <p class="footer-tagline">Autonomous AI Agent Orchestration</p>
+        </div>
+        <div class="footer-links">
+          <a href="#agents">Agents</a>
+          <a href="#features">Features</a>
+          <a href="#how-it-works">How It Works</a>
+          <a href="#faq">FAQ</a>
+          <a href="#cta">Get Access</a>
+        </div>
+        <div class="footer-bottom">
+          <p>&copy; 2026 ClawForce by <a href="https://altovation.in" target="_blank" rel="noopener noreferrer">Altovation</a>. All rights reserved.</p>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/script.js"></script>
+</body>
+</html>

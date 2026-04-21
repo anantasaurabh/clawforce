@@ -37,7 +37,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { OAUTH_PROVIDERS } from '../constants/oauthProviders';
-import { getUserAuthsPath } from '../constants/dbPaths';
 
 function cn(...inputs) {
   return twMerge(clsx(inputs));

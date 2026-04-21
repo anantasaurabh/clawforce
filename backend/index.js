@@ -80,6 +80,7 @@ app.get('/auth/:provider/callback', async (req, res) => {
     });
 
     // 3. Update User's Global Authorizations in Firestore
+    const credentials = providerConfig.fieldMap(tokenResponse.data);
     const authPath = getUserAuthsPath(userId);
     const authRef = db.collection(authPath).doc(provider);
 
