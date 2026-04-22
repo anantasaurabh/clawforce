@@ -13,6 +13,7 @@ import Taskforce from './pages/Taskforce';
 import AgentDetails from './pages/AgentDetails';
 import Taskboard from './pages/Taskboard';
 import OAuthBridge from './pages/OAuthBridge';
+import GlobalVars from './pages/GlobalVars';
 
 function App() {
  return (
@@ -33,6 +34,7 @@ function App() {
       <Route path="agents" element={<Agents />} />
       <Route path="categories" element={<Categories />} />
       <Route path="packages" element={<Packages />} />
+      <Route path="global-vars" element={<GlobalVars />} />
       <Route path="auth/:provider" element={<OAuthBridge />} />
       <Route path="settings" element={<Dashboard />} />
       <Route path="help" element={<Dashboard />} />

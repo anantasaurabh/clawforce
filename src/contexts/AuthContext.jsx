@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { initializeApp, deleteApp } from 'firebase/app';
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, createUserWithEmailAndPassword, getAuth } from 'firebase/auth';
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, createUserWithEmailAndPassword, getAuth, updateProfile as updateAuthProfile, updatePassword as updateAuthPassword } from 'firebase/auth';
 import { collection, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db, firebaseConfig } from '../firebase';
 import { COLLECTIONS } from '../constants/dbPaths';
@@ -93,6 +93,26 @@ export function AuthProvider({ children }) {
   }
  }
 
+ async function updateProfileData(data) {
+  if (!currentUser) return;
+  const userRef = doc(collection(db, COLLECTIONS.USERS), currentUser.uid);
+  await setDoc(userRef, data, { merge: true });
+  setUserProfile(prev => ({ ...prev, ...data }));
+  
+  // Also update auth profile if displayName or photoURL is provided
+  if (data.displayName || data.photoURL) {
+   await updateAuthProfile(currentUser, {
+    displayName: data.displayName,
+    photoURL: data.photoURL
+   });
+  }
+ }
+
+ function updatePassword(newPassword) {
+  if (!currentUser) return;
+  return updateAuthPassword(currentUser, newPassword);
+ }
+
  useEffect(() => {
   const unsubscribe = onAuthStateChanged(auth, async (user) => {
    if (user) {
@@ -117,7 +137,9 @@ export function AuthProvider({ children }) {
   mockLogin,
   logout,
   resetPassword,
-  registerUser
+  registerUser,
+  updateProfileData,
+  updatePassword
  };
 
  return (

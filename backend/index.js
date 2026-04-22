@@ -417,13 +417,17 @@ app.post('/api/posts/batch-create', validateReviewToken, async (req, res) => {
         ownerId: userId,
         content: post.content,
         mediaUrl: post.mediaUrl || null,
-        status: 'pending',
+        status: post.status || 'pending',
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       };
 
       if (post.scheduledAt) {
-        postData.scheduledAt = admin.firestore.Timestamp.fromDate(new Date(post.scheduledAt));
+        try {
+          postData.scheduledAt = admin.firestore.Timestamp.fromDate(new Date(post.scheduledAt));
+        } catch (e) {
+          console.warn(`[BatchCreate] Invalid date for post: ${post.scheduledAt}`);
+        }
       }
 
       batch.set(newPostRef, postData);

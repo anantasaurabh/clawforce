@@ -91,13 +91,27 @@ async function processTask(taskId, task) {
   console.log(`[Task ${taskId}] Message: "${message}"`);
 
 
+  // 2.2 Fetch User's Global Review Token
+  const userConfigRef = db.collection(`artifacts/clwhq-001/userConfigs`).doc(ownerId);
+  const userConfigSnap = await userConfigRef.get();
+  const userConfig = userConfigSnap.exists ? userConfigSnap.data() : {};
+  const globalReviewToken = userConfig.globalReviewToken || '';
+
+  // 2.3 Fetch System-wide Global Variables
+  const globalVarsRef = db.collection(COLLECTIONS.GLOBAL_VARS).doc('settings');
+  const globalVarsSnap = await globalVarsRef.get();
+  const globalVars = globalVarsSnap.exists ? globalVarsSnap.data() : {};
+
+  console.log(`[Task ${taskId}] Injecting USER_ID, TOKEN and ${Object.keys(globalVars).length} global vars.`);
+
   // 3. Prepare OpenClaw Command
-  // Adjust arguments based on how openclaw CLI expects them
-  // Usage: openclaw agent --skill <agentId> --message <objective>
   const env = {
     ...process.env,
     ...finalSettings, // Pass user settings as env vars
     ...authorizations, // Pass shared OAuth tokens as env vars
+    ...globalVars, // Pass system-wide global vars (e.g. CLAWFORCE_BACKEND_URL)
+    USER_ID: ownerId,
+    TOKEN: globalReviewToken,
     OPENCLAW_TASK_ID: taskId
   };
 

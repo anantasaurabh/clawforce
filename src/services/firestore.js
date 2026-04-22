@@ -179,6 +179,20 @@ export const configService = {
     }, { merge: true });
 
     return newToken;
+  },
+
+  async getGlobalVars() {
+    const ref = doc(db, COLLECTIONS.GLOBAL_VARS, 'settings');
+    const snap = await getDoc(ref);
+    return snap.exists() ? snap.data() : {};
+  },
+
+  async updateGlobalVars(data) {
+    const ref = doc(db, COLLECTIONS.GLOBAL_VARS, 'settings');
+    await setDoc(ref, {
+      ...data,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
   }
 };
 

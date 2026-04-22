@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation, Link } from 'react-router-dom';
 import { catalogService } from '../services/firestore';
 import { useAuth } from '../contexts/AuthContext';
+import ProfileModal from '../components/ProfileModal';
 import { 
  LayoutDashboard, 
  Users, 
@@ -14,7 +15,8 @@ import {
  Search,
  Plus,
  Grid,
- Package
+ Package,
+ Globe
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -32,6 +34,7 @@ const navItems = [
 const adminItems = [
  { icon: Users, label: 'Users', path: '/users' },
  { icon: Bot, label: 'Agents', path: '/agents' },
+ { icon: Globe, label: 'Global Variables', path: '/global-vars' },
  { icon: Grid, label: 'Categories', path: '/categories' },
  { icon: Package, label: 'Packages', path: '/packages' },
 ];
@@ -47,6 +50,7 @@ export default function DashboardLayout() {
  const location = useLocation();
  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
  const [activeAgentName, setActiveAgentName] = useState('');
+ const [showProfileModal, setShowProfileModal] = useState(false);
 
  // Fetch active agent name for breadcrumbs
  React.useEffect(() => {
@@ -74,6 +78,7 @@ export default function DashboardLayout() {
   'agents': 'Core Registry',
   'categories': 'Protocol Categories',
   'packages': 'Security Packages',
+  'global-vars': 'Global Protocol Variables',
   'settings': 'System Settings',
   'help': 'Support Center'
  };
@@ -217,10 +222,6 @@ export default function DashboardLayout() {
      </div>
 
      <div className="flex items-center gap-6">
-      <button className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 text-brand-primary text-sm font-bold rounded-xl hover:border-brand-primary hover:bg-brand-primary/5 transition-all shadow-sm">
-       <Plus size={18} />
-       New Operation
-      </button>
       <div className="flex items-center gap-2">
        <button className="p-2.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-xl transition-all relative">
         <Bell size={20} />
@@ -230,12 +231,25 @@ export default function DashboardLayout() {
         <Settings size={20} />
        </button>
       </div>
-      <div className="h-8 w-px bg-slate-100" />
-      <div className="flex items-center gap-3 pl-2">
-       <div className="w-10 h-10 rounded-full bg-slate-200 border-2 border-white overflow-hidden shadow-sm flex-shrink-0">
-        <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser?.uid || 'admin'}`} alt="avatar" />
-       </div>
-      </div>
+       <div className="h-8 w-px bg-slate-100" />
+       <button 
+         onClick={() => setShowProfileModal(true)}
+         className="flex items-center gap-3 pl-2 group transition-all"
+       >
+        <div className="hidden md:flex flex-col items-end mr-1">
+         <span className="text-[11px] font-black text-slate-900 uppercase tracking-widest leading-none mb-0.5">
+           {userProfile?.displayName || "Operator"}
+         </span>
+         <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tight leading-none">
+           {userProfile?.role || "Member"}
+         </span>
+        </div>
+        <div className="w-10 h-10 rounded-full bg-slate-200 border-2 border-white overflow-hidden shadow-sm flex-shrink-0 group-hover:border-brand-primary transition-all">
+         <img src={userProfile?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser?.uid || "admin"}`} alt="avatar" />
+        </div>
+       </button>
+
+       <ProfileModal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} />
      </div>
     </header>
 

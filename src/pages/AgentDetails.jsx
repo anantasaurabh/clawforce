@@ -27,7 +27,13 @@ import {
   Link2,
   Info,
   Loader2,
-  Terminal
+  Terminal,
+  Copy,
+  Check,
+  ChevronDown,
+  UserCog,
+  RefreshCw,
+  Eraser
 } from 'lucide-react';
 import { collection, query, where, orderBy, getDocs, doc, getDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -81,6 +87,9 @@ export default function AgentDetails() {
   const [realTimeComments, setRealTimeComments] = useState([]);
   const [messageInput, setMessageInput] = useState('');
   const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [copying, setCopying] = useState(false);
+  const [showHumanControls, setShowHumanControls] = useState(false);
+  const humanControlsRef = useRef(null);
 
   // Refs for auto-scroll
   const logsEndRef = useRef(null);
@@ -130,6 +139,13 @@ export default function AgentDetails() {
         if (configData?.credentials) {
           setCredentials(configData.credentials);
         }
+
+        // Auto-redirect to config if not configured
+        const hasSchema = agentData.configSchema && agentData.configSchema.length > 0;
+        if (hasSchema && !configData?.isConfigured) {
+          setActiveTab('config');
+        }
+
         // Initialize/Fetch Secret Tokens for Review Actions
         await configService.initializeReviewToken(currentUser.uid, id);
         await configService.initializeGlobalReviewToken(currentUser.uid);
@@ -144,6 +160,18 @@ export default function AgentDetails() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    if (!id || !currentUser) return;
+    
+    function handleClickOutside(event) {
+      if (humanControlsRef.current && !humanControlsRef.current.contains(event.target)) {
+        setShowHumanControls(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Live Task History Listener
   useEffect(() => {
@@ -401,6 +429,36 @@ export default function AgentDetails() {
     }
   };
 
+  const handleCopyLogs = () => {
+    if (!realTimeLogs.length) return;
+    
+    const logText = realTimeLogs.map(log => {
+      const timestamp = log.timestamp?.toDate ? `[${log.timestamp.toDate().toLocaleTimeString([], { hour12: false })}] ` : '';
+      return `${timestamp}${log.content}`;
+    }).join('\n');
+    
+    navigator.clipboard.writeText(logText).then(() => {
+      setCopying(true);
+      setTimeout(() => setCopying(false), 2000);
+    });
+  };
+
+  const handleRefreshProtocol = () => {
+    fetchAgentData();
+  };
+
+  const handleDeleteHistory = async () => {
+    if (!window.confirm('Are you sure you want to delete all completed/failed tasks for this agent?')) return;
+    
+    try {
+      const historyToDelete = tasks.filter(t => ['completed', 'failed', 'cancelled'].includes(t.status));
+      await Promise.all(historyToDelete.map(t => taskService.deleteTask(t.id)));
+      // Tasks state will be updated by the listener
+    } catch (err) {
+      console.error('Failed to clear history:', err);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col gap-10 animate-pulse">
@@ -497,39 +555,111 @@ export default function AgentDetails() {
             </div>
 
             <div className="pt-4 flex flex-wrap items-center justify-center md:justify-start gap-4">
-              <button
-                onClick={() => isConfigured ? setShowTaskModal(true) : setShowDeployModal(true)}
-                className={cn(
-                  "w-full md:w-auto px-10 py-4 font-black text-xs uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg",
-                  isConfigured
-                    ? "bg-slate-900 text-white shadow-slate-900/20 hover:bg-slate-800"
-                    : "bg-brand-primary text-white shadow-brand-primary/20 hover:bg-brand-primary/90"
+              <div className="relative" ref={humanControlsRef}>
+                <button
+                  onClick={() => setShowHumanControls(!showHumanControls)}
+                  className={cn(
+                    "w-full md:w-auto px-10 py-4 font-black text-xs uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg",
+                    showHumanControls ? "bg-slate-800 text-white" : "bg-slate-900 text-white shadow-slate-900/20 hover:bg-slate-800"
+                  )}
+                >
+                  <UserCog size={18} />
+                  Human Controls
+                  <ChevronDown size={16} className={cn("transition-transform duration-300", showHumanControls ? "rotate-180" : "")} />
+                </button>
+
+                {showHumanControls && (
+                  <div className="absolute top-full left-0 mt-3 w-80 bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 py-6 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
+                    <div className="px-10 py-2 mb-2">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Manual Interventions</p>
+                    </div>
+                    
+                    <button
+                      onClick={() => {
+                        isConfigured ? setShowTaskModal(true) : setShowDeployModal(true);
+                        setShowHumanControls(false);
+                      }}
+                      className="w-full px-10 py-4 text-left hover:bg-slate-50 transition-all flex items-center gap-4 group"
+                    >
+                      <div className="w-10 h-10 rounded-2xl bg-slate-900 text-white flex items-center justify-center shrink-0 shadow-lg shadow-slate-900/10 group-hover:scale-110 transition-transform">
+                        <Plus size={18} />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-xs font-black uppercase tracking-widest text-slate-900">
+                          {isConfigured ? 'Create Task' : 'Configure Agent'}
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-medium">Initialize operational cycle</span>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        handleRefreshProtocol();
+                        setShowHumanControls(false);
+                      }}
+                      className="w-full px-10 py-4 text-left hover:bg-slate-50 transition-all flex items-center gap-4 group"
+                    >
+                      <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 group-hover:bg-emerald-600 group-hover:text-white transition-all group-hover:scale-110">
+                        <RefreshCw size={18} />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-xs font-black uppercase tracking-widest text-slate-900">Refresh Protocol</span>
+                        <span className="text-[10px] text-slate-500 font-medium">Synchronize agent state</span>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        handleDeleteHistory();
+                        setShowHumanControls(false);
+                      }}
+                      className="w-full px-10 py-4 text-left hover:bg-slate-50 transition-all flex items-center gap-4 group"
+                    >
+                      <div className="w-10 h-10 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center shrink-0 group-hover:bg-red-600 group-hover:text-white transition-all group-hover:scale-110">
+                        <Eraser size={18} />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-xs font-black uppercase tracking-widest text-slate-900">Clear History</span>
+                        <span className="text-[10px] text-slate-500 font-medium">Prune completed task logs</span>
+                      </div>
+                    </button>
+
+                    {isConfigured && agent.customActions?.length > 0 && (
+                      <>
+                        <div className="h-px bg-slate-50 my-4 mx-10" />
+                        <div className="px-10 py-2 mb-2">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">External Protocols</p>
+                        </div>
+                        {agent.customActions.map((action, idx) => {
+                          const processedUrl = action.url
+                            .replace('{{userId}}', currentUser.uid)
+                            .replace('{{secretToken}}', config?.reviewSecretToken || '')
+                            .replace('{{globalToken}}', config?.globalReviewToken || '');
+
+                          return (
+                            <a
+                              key={idx}
+                              href={processedUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={() => setShowHumanControls(false)}
+                              className="w-full px-10 py-4 text-left hover:bg-slate-50 transition-all flex items-center gap-4 group"
+                            >
+                              <div className="w-10 h-10 rounded-2xl bg-brand-primary/10 text-brand-primary flex items-center justify-center shrink-0 group-hover:bg-brand-primary group-hover:text-white transition-all group-hover:scale-110">
+                                <ExternalLink size={18} />
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-xs font-black uppercase tracking-widest text-slate-900">{action.label}</span>
+                                <span className="text-[10px] text-slate-500 font-medium">Direct external handshake</span>
+                              </div>
+                            </a>
+                          );
+                        })}
+                      </>
+                    )}
+                  </div>
                 )}
-              >
-                <Plus size={18} />
-                {isConfigured ? 'Create Task' : 'Configure Agent'}
-              </button>
-
-              {/* Dynamic Action Buttons */}
-              {isConfigured && agent.customActions?.map((action, idx) => {
-                const processedUrl = action.url
-                  .replace('{{userId}}', currentUser.uid)
-                  .replace('{{secretToken}}', config?.reviewSecretToken || '')
-                  .replace('{{globalToken}}', config?.globalReviewToken || ''); // New support for global token
-
-                return (
-                  <a
-                    key={idx}
-                    href={processedUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full md:w-auto px-10 py-4 font-black text-xs uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg bg-white text-brand-primary border-2 border-brand-primary/10 hover:bg-brand-primary/5 shadow-brand-primary/5"
-                  >
-                    <ExternalLink size={18} />
-                    {action.label}
-                  </a>
-                );
-              })}
+              </div>
             </div>
           </div>
         </div>
@@ -1171,7 +1301,26 @@ export default function AgentDetails() {
                     <div ref={commentsEndRef} />
                   </div>
                 ) : (
-                  <div className="bg-slate-900 rounded-xl p-8 font-mono text-[11px] leading-relaxed text-emerald-500/80 h-full overflow-y-auto custom-scrollbar border border-slate-800">
+                  <div className="bg-slate-900 rounded-xl p-8 font-mono text-[11px] leading-relaxed text-emerald-500/80 h-full overflow-y-auto custom-scrollbar border border-slate-800 relative group/logs">
+                    {realTimeLogs.length > 0 && (
+                      <button
+                        onClick={handleCopyLogs}
+                        className="absolute top-4 right-4 p-2 bg-slate-800/50 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg transition-all opacity-0 group-hover/logs:opacity-100 flex items-center gap-2 border border-slate-700/50"
+                        title="Copy Logs"
+                      >
+                        {copying ? (
+                          <>
+                            <Check size={14} className="text-emerald-400" />
+                            <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400">Copied</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={14} />
+                            <span className="text-[9px] font-black uppercase tracking-widest">Copy Logs</span>
+                          </>
+                        )}
+                      </button>
+                    )}
                     <div className="space-y-1">
                       {realTimeLogs.length === 0 ? (
                         <div className="py-20 text-center space-y-3 opacity-50">
