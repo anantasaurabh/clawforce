@@ -147,6 +147,38 @@ export const configService = {
       isConfigured: true,
       updatedAt: serverTimestamp()
     }, { merge: true });
+  },
+
+  async initializeReviewToken(userId, agentId) {
+    const ref = doc(db, getUserConfigPath(userId), agentId);
+    const snap = await getDoc(ref);
+    const data = snap.data();
+    
+    if (data?.reviewSecretToken) return data.reviewSecretToken;
+
+    const newToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    await setDoc(ref, {
+      reviewSecretToken: newToken,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+
+    return newToken;
+  },
+
+  async initializeGlobalReviewToken(userId) {
+    const ref = doc(db, `artifacts/${APP_ID}/userConfigs`, userId);
+    const snap = await getDoc(ref);
+    const data = snap.data();
+    
+    if (data?.globalReviewToken) return data.globalReviewToken;
+
+    const newToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    await setDoc(ref, {
+      globalReviewToken: newToken,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+
+    return newToken;
   }
 };
 

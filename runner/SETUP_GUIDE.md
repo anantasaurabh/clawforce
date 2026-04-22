@@ -30,3 +30,7 @@ GCLOUD_PROJECT="your-project-id"
 
 ### Security Note
 The Service Account gives the runner full administrative access to your project. Ensure the file is kept secure and only accessible by the runner process.
+
+### Run using
+node index.js
+

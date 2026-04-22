@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clawforce | Command Center</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Federo&family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+        .font-federo {
+            font-family: 'Federo', sans-serif;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-slate-900">
+    <div id="app" class="max-w-6xl mx-auto px-6 py-16">
+        <!-- Header -->
+        <header class="mb-12">
+            <div class="flex items-center gap-4 mb-4">
+                <span class="bg-emerald-600 text-white p-3 rounded-2xl shadow-lg shadow-emerald-600/20">
+                    <i data-lucide="layout-grid" class="w-8 h-8"></i>
+                </span>
+                <div>
+                    <h1 class="text-4xl font-black tracking-tight text-slate-900">Review Command Center</h1>
+                    <p class="text-slate-500 font-medium">Centralized oversight for all autonomous agent communications.</p>
+                </div>
+            </div>
+        </header>
+
+        <!-- Stats Grid -->
+        <div id="stats-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Loading State -->
+            <div class="col-span-full py-20 text-center" id="loading">
+                <div class="inline-block animate-spin text-emerald-600 mb-4">
+                    <i data-lucide="loader-2" class="w-8 h-8"></i>
+                </div>
+                <p class="text-slate-400 font-bold uppercase tracking-widest text-sm">Scanning Data Channels...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+        const urlParams = new URLSearchParams(window.location.search);
+        const userId = urlParams.get('userId');
+        const token = urlParams.get('token');
+
+        const SERVICES = [
+            { id: 'linkedin-manager', label: 'LinkedIn', icon: 'linkedin', color: 'blue', desc: 'Social posts and outreach' },
+            { id: 'facebook-manager', label: 'Facebook', icon: 'facebook', color: 'indigo', desc: 'Community engagement' },
+            { id: 'instagram-manager', label: 'Instagram', icon: 'instagram', color: 'pink', desc: 'Reels and visual content' },
+            { id: 'email-manager', label: 'Email', icon: 'mail', color: 'emerald', desc: 'Draft campaigns and replies' }
+        ];
+
+        async function fetchStats() {
+            if (!userId || !token) {
+                document.getElementById('stats-grid').innerHTML = '<p class="text-red-500 font-bold col-span-full">Error: Unauthorized Access</p>';
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/review/stats?userId=${userId}&token=${token}`);
+                const stats = await res.json();
+                renderDashboard(stats);
+            } catch (err) {
+                console.error(err);
+                document.getElementById('stats-grid').innerHTML = '<p class="text-red-500 font-bold col-span-full">Error: Failed to fetch data</p>';
+            }
+        }
+
+        function renderDashboard(stats) {
+            const grid = document.getElementById('stats-grid');
+            grid.innerHTML = SERVICES.map(service => {
+                const pendingCount = stats[service.id] || 0;
+                const colors = {
+                    blue: 'text-blue-600 bg-blue-50 border-blue-100 shadow-blue-600/10',
+                    indigo: 'text-indigo-600 bg-indigo-50 border-indigo-100 shadow-indigo-600/10',
+                    pink: 'text-pink-600 bg-pink-50 border-pink-100 shadow-pink-600/10',
+                    emerald: 'text-emerald-600 bg-emerald-50 border-emerald-100 shadow-emerald-600/10'
+                };
+
+                const colorClass = colors[service.color];
+
+                return `
+                    <a href="/review/${service.id}?userId=${userId}&token=${token}" class="group bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl shadow-slate-200/20 hover:shadow-2xl hover:shadow-slate-200/40 transition-all transform hover:-translate-y-1">
+                        <div class="flex items-start justify-between mb-8">
+                            <div class="w-16 h-16 rounded-2xl ${colorClass} flex items-center justify-center border transition-all group-hover:scale-110">
+                                <i data-lucide="${service.icon}" class="w-8 h-8"></i>
+                            </div>
+                            <div class="flex flex-col items-end">
+                                <span class="text-3xl font-black text-slate-900">${pendingCount}</span>
+                                <span class="text-[10px] font-black uppercase tracking-widest text-slate-400">Pending</span>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-black text-slate-900 mb-2">${service.label}</h3>
+                            <p class="text-slate-500 text-sm font-medium mb-6 leading-relaxed">${service.desc}</p>
+                            <div class="flex items-center gap-2 text-emerald-600 text-[10px] font-black uppercase tracking-widest group-hover:gap-3 transition-all">
+                                Open Review Interface <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                            </div>
+                        </div>
+                    </a>
+                `;
+            }).join('');
+            
+            lucide.createIcons();
+        }
+
+        fetchStats();
+    </script>
+</body>
+</html>

@@ -130,6 +130,9 @@ export default function AgentDetails() {
         if (configData?.credentials) {
           setCredentials(configData.credentials);
         }
+        // Initialize/Fetch Secret Tokens for Review Actions
+        await configService.initializeReviewToken(currentUser.uid, id);
+        await configService.initializeGlobalReviewToken(currentUser.uid);
       } catch (cfgErr) {
         console.warn('Agent configuration could not be loaded:', cfgErr);
       }
@@ -493,7 +496,7 @@ export default function AgentDetails() {
               </div>
             </div>
 
-            <div className="pt-4">
+            <div className="pt-4 flex flex-wrap items-center justify-center md:justify-start gap-4">
               <button
                 onClick={() => isConfigured ? setShowTaskModal(true) : setShowDeployModal(true)}
                 className={cn(
@@ -506,6 +509,27 @@ export default function AgentDetails() {
                 <Plus size={18} />
                 {isConfigured ? 'Create Task' : 'Configure Agent'}
               </button>
+
+              {/* Dynamic Action Buttons */}
+              {isConfigured && agent.customActions?.map((action, idx) => {
+                const processedUrl = action.url
+                  .replace('{{userId}}', currentUser.uid)
+                  .replace('{{secretToken}}', config?.reviewSecretToken || '')
+                  .replace('{{globalToken}}', config?.globalReviewToken || ''); // New support for global token
+
+                return (
+                  <a
+                    key={idx}
+                    href={processedUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full md:w-auto px-10 py-4 font-black text-xs uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg bg-white text-brand-primary border-2 border-brand-primary/10 hover:bg-brand-primary/5 shadow-brand-primary/5"
+                  >
+                    <ExternalLink size={18} />
+                    {action.label}
+                  </a>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -693,39 +717,50 @@ export default function AgentDetails() {
                       const isAuthorized = !!authData;
                       
                       return (
-                        <div key={authId} className="flex items-center justify-between p-5 bg-white border border-slate-100 rounded-2xl shadow-sm group hover:border-emerald-100 transition-all">
-                          <div className="flex items-center gap-4">
-                            <div className={cn(
-                              "w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
-                              isAuthorized ? "bg-emerald-50 text-emerald-600" : "bg-slate-50 text-slate-400 group-hover:bg-emerald-50"
-                            )}>
-                              {isAuthorized ? <ShieldCheck size={20} /> : <Link2 size={20} />}
+                        <div key={authId} className="space-y-2">
+                          <div className="flex items-center justify-between p-5 bg-white border border-slate-100 rounded-2xl shadow-sm group hover:border-emerald-100 transition-all">
+                            <div className="flex items-center gap-4">
+                              <div className={cn(
+                                "w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
+                                isAuthorized ? "bg-emerald-50 text-emerald-600" : "bg-slate-50 text-slate-400 group-hover:bg-emerald-50"
+                              )}>
+                                {isAuthorized ? <ShieldCheck size={20} /> : <Link2 size={20} />}
+                              </div>
+                              <div>
+                                <p className="text-[11px] font-black text-slate-900 uppercase tracking-tight">
+                                  {provider?.label || authId}
+                                </p>
+                                <p className="text-[10px] font-medium text-slate-500">
+                                  {isAuthorized 
+                                    ? `Authorized: ${authData.updatedAt?.toDate ? authData.updatedAt.toDate().toLocaleDateString() : 'Active'}`
+                                    : 'Handshake Required'}
+                                </p>
+                              </div>
                             </div>
-                            <div>
-                              <p className="text-[11px] font-black text-slate-900 uppercase tracking-tight">
-                                {provider?.label || authId}
-                              </p>
-                              <p className="text-[10px] font-medium text-slate-500">
-                                {isAuthorized 
-                                  ? `Authorized: ${authData.updatedAt?.toDate ? authData.updatedAt.toDate().toLocaleDateString() : 'Active'}`
-                                  : 'Handshake Required'}
-                              </p>
-                            </div>
+                            
+                            {isAuthorized ? (
+                              <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-[10px] font-black uppercase tracking-widest border border-emerald-100">
+                                  <CheckCircle2 size={12} />
+                                  Active
+                                </div>
+                                <button
+                                  onClick={() => navigate(`/auth/${authId}?agentId=${id}`)}
+                                  className="p-2 text-slate-400 hover:text-slate-900 border border-slate-100 rounded-lg transition-all"
+                                  title="Re-authorize"
+                                >
+                                  <RotateCcw size={14} />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => navigate(`/auth/${authId}?agentId=${id}`)}
+                                className="px-4 py-2 bg-slate-900 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/10"
+                              >
+                                Authorize
+                              </button>
+                            )}
                           </div>
-                          
-                          {isAuthorized ? (
-                             <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-[10px] font-black uppercase tracking-widest">
-                               <CheckCircle2 size={12} />
-                               Active
-                             </div>
-                          ) : (
-                            <button
-                              onClick={() => navigate(`/auth/${authId}?agentId=${id}`)}
-                              className="px-4 py-2 bg-slate-900 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/10"
-                            >
-                              Authorize
-                            </button>
-                          )}
                         </div>
                       );
                     })}
@@ -773,23 +808,48 @@ export default function AgentDetails() {
                   </div>
                 ) : (
                   <>
-                    {agent.configSchema.map((field) => (
-                      <div key={field.key} className="space-y-3">
-                        <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-2">
-                          {field.label}
-                          <Info size={12} className="text-slate-300" />
-                        </label>
-                        <div className="relative group">
-                          <input
-                            type={field.type === 'password' ? 'password' : 'text'}
-                            value={credentials[field.key] || ''}
-                            disabled
-                            className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-xl text-slate-400 font-bold focus:outline-none cursor-not-allowed italic"
-                            placeholder={`••••••••••••••••`}
-                          />
+                    {agent.configSchema.map((field) => {
+                      // Merge local credentials with global shared authorizations (Case-Insensitive)
+                      // Normalized pool of all global credentials
+                      const globalPool = {};
+                      Object.values(userAuthorizations).forEach(auth => {
+                        if (auth.credentials) {
+                          Object.entries(auth.credentials).forEach(([k, v]) => {
+                            globalPool[k] = v;
+                            globalPool[k.toLowerCase()] = v;
+                            globalPool[k.toUpperCase()] = v;
+                          });
+                        }
+                      });
+                      
+                      const displayValue = credentials[field.key] || 
+                                          globalPool[field.key] || 
+                                          globalPool[field.key.toLowerCase()] || 
+                                          globalPool[field.key.toUpperCase()] || '';
+                      
+                      return (
+                        <div key={field.key} className="space-y-3">
+                          <label className="text-[11px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                            {field.label}
+                            {displayValue && field.key.toLowerCase().includes('urn') && (
+                              <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-600 rounded text-[8px] font-black">Shared</span>
+                            )}
+                          </label>
+                          <div className="relative group">
+                            <input
+                              type={field.type === 'password' ? 'password' : 'text'}
+                              value={displayValue}
+                              disabled
+                              className={cn(
+                                "w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-xl font-bold focus:outline-none cursor-not-allowed",
+                                field.type === 'password' ? "text-slate-400 italic" : "text-slate-900 shadow-sm"
+                              )}
+                              placeholder={field.type === 'password' ? '••••••••••••••••' : `Enter ${field.label}`}
+                            />
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
 
                     <button
                       onClick={() => setShowDeployModal(true)}

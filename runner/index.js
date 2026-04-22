@@ -44,7 +44,12 @@ tasksQuery.onSnapshot(snapshot => {
  * Main Task Processing Logic
  */
 async function processTask(taskId, task) {
-  const { ownerId, agentId, objective } = task;
+  const { ownerId, agentId, objective, title, description } = task;
+  let message = objective || title || "No objective provided";
+  if (description) {
+    message += `\n\nContext/Description: ${description}`;
+  }
+
 
   // 1. Mark as in-progress immediately to "lock" it
   await updateTaskStatus(taskId, 'in-progress', { startTime: admin.firestore.FieldValue.serverTimestamp() });
@@ -53,6 +58,8 @@ async function processTask(taskId, task) {
   const settingsPath = getUserConfigPath(ownerId);
   const settingsDoc = await db.collection(settingsPath).doc(agentId).get();
   const settings = settingsDoc.exists ? settingsDoc.data() : {};
+  console.log(`[Task ${taskId}] Owner ID: ${ownerId}`);
+
 
   // 2.1 Fetch Global User Authorizations (OAuth Tokens)
   const authsPath = getUserAuthsPath(ownerId);
@@ -61,29 +68,100 @@ async function processTask(taskId, task) {
   authsSnap.forEach(doc => {
     const data = doc.data();
     if (data.credentials) {
-      Object.assign(authorizations, data.credentials);
+      for (const [key, value] of Object.entries(data.credentials)) {
+        authorizations[key] = value;
+        authorizations[key.toUpperCase()] = value; // Support agent expectations for uppercase env vars
+      }
     }
   });
 
+  console.log(`[Task ${taskId}] Auth Keys: ${Object.keys(authorizations).join(', ')}`);
+
+
+  // Also uppercase settings just in case
+  const finalSettings = {};
+  for (const [key, value] of Object.entries(settings)) {
+    finalSettings[key] = value;
+    finalSettings[key.toUpperCase()] = value;
+  }
+
+
+  console.log(`[Task ${taskId}] Credentials Found: ${Object.keys(authorizations).length / 2} pairs (mapped to ${Object.keys(authorizations).length} env vars)`);
   console.log(`[Task ${taskId}] Spawning OpenClaw for agent: ${agentId}`);
+  console.log(`[Task ${taskId}] Message: "${message}"`);
+
 
   // 3. Prepare OpenClaw Command
   // Adjust arguments based on how openclaw CLI expects them
   // Usage: openclaw agent --skill <agentId> --message <objective>
   const env = {
     ...process.env,
-    ...settings, // Pass user settings as env vars
+    ...finalSettings, // Pass user settings as env vars
     ...authorizations, // Pass shared OAuth tokens as env vars
     OPENCLAW_TASK_ID: taskId
   };
 
-  const clawProcess = spawn('openclaw', ['agent', '--message', `"[${agentId}] ${objective}"`], { env });
+  const command = `openclaw agent --agent "${agentId}" --session-id "${taskId}" --message "${message.replace(/"/g, '\\"')}" --local`;
 
-  // 4. Stream Logs to Firestore
+  const clawProcess = spawn(command, {
+    env,
+    shell: true
+  });
+
+  // 3.1 Send Context (Auth Tokens, etc.) via STDIN
+  const context = {
+    context: {
+      env: {
+        ...finalSettings,
+        ...authorizations
+      }
+    }
+  };
+
+  console.log(`[Task ${taskId}] Sending context to STDIN...`);
+  clawProcess.stdin.write(JSON.stringify(context) + "\n");
+  clawProcess.stdin.end();
+
+  // 4. Handle process errors (e.g., command not found)
+  clawProcess.on('error', (error) => {
+    console.error(`[Task ${taskId}] Failed to spawn OpenClaw:`, error);
+    streamLog(taskId, 'stderr', `Failed to spawn OpenClaw: ${error.message}`);
+    updateTaskStatus(taskId, 'failed', { error: error.message });
+  });
+
+  // 5. Stream Logs to Firestore
   clawProcess.stdout.on('data', (data) => {
     const output = data.toString();
     process.stdout.write(`[Task ${taskId}] STDOUT: ${output}`);
     streamLog(taskId, 'stdout', output);
+
+    // Detect Generic Agent Events (Comments/Status)
+    const lines = output.split('\n');
+    for (const line of lines) {
+      const trimmed = line.trim();
+
+      // 1. JSON Event Protocol
+      if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+        try {
+          const json = JSON.parse(trimmed);
+          const content = json.content || json.summary || json.message;
+
+          if (content && (json.type === 'comment' || json.status === 'success')) {
+            console.log(`[Task ${taskId}] Detected agent comment via JSON.`);
+            addComment(taskId, 'agent', content, agentId);
+          }
+        } catch (e) {
+          // Not valid JSON or not our format, ignore
+        }
+      }
+
+      // 2. Simple Prefix Protocol
+      if (trimmed.startsWith('[Comment]')) {
+        const content = trimmed.replace('[Comment]', '').trim();
+        console.log(`[Task ${taskId}] Detected agent comment via prefix.`);
+        addComment(taskId, 'agent', content, agentId);
+      }
+    }
   });
 
   clawProcess.stderr.on('data', (data) => {
@@ -111,6 +189,22 @@ async function updateTaskStatus(taskId, status, extraData = {}) {
     status,
     ...extraData
   });
+}
+
+/**
+ * Helper to add a comment entry to the comments sub-collection
+ */
+async function addComment(taskId, role, content, authorName = 'System') {
+  try {
+    await db.collection(COLLECTIONS.TASKS).doc(taskId).collection('comments').add({
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      role, // 'user' or 'agent'
+      authorName,
+      content
+    });
+  } catch (error) {
+    console.error('Error writing comment to Firestore:', error);
+  }
 }
 
 /**

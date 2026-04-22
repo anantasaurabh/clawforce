@@ -261,7 +261,8 @@ function AgentModal({ agent, categories, onClose, onSuccess }) {
     imageUrl: agent?.imageUrl || '',
     configSchema: Array.isArray(agent?.configSchema) ? agent.configSchema : [],
     instructions: agent?.instructions || '',
-    requiredAuths: Array.isArray(agent?.requiredAuths) ? agent.requiredAuths : []
+    requiredAuths: Array.isArray(agent?.requiredAuths) ? agent.requiredAuths : [],
+    customActions: Array.isArray(agent?.customActions) ? agent.customActions : []
   });
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(agent?.imageUrl || '');
@@ -286,6 +287,26 @@ function AgentModal({ agent, categories, onClose, onSuccess }) {
     const newSchema = [...formData.configSchema];
     newSchema[index] = { ...newSchema[index], [field]: value };
     setFormData(prev => ({ ...prev, configSchema: newSchema }));
+  };
+
+  const addCustomAction = () => {
+    setFormData(prev => ({
+      ...prev,
+      customActions: [...(prev.customActions || []), { label: '', url: '' }]
+    }));
+  };
+
+  const removeCustomAction = (index) => {
+    setFormData(prev => ({
+      ...prev,
+      customActions: prev.customActions.filter((_, i) => i !== index)
+    }));
+  };
+
+  const updateCustomAction = (index, field, value) => {
+    const newActions = [...formData.customActions];
+    newActions[index] = { ...newActions[index], [field]: value };
+    setFormData(prev => ({ ...prev, customActions: newActions }));
   };
 
   async function handleSubmit(e) {
@@ -558,6 +579,56 @@ function AgentModal({ agent, categories, onClose, onSuccess }) {
                         <button
                           type="button"
                           onClick={() => removeConfigField(index)}
+                          className="text-slate-300 hover:text-red-500 transition-colors"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-5 bg-slate-50 rounded-[1.5rem] space-y-4 border border-slate-100">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Zap size={14} className="text-amber-600" />
+                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Dynamic Action Buttons</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={addCustomAction}
+                    className="flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-200 rounded-lg text-[8px] font-black uppercase tracking-widest text-amber-800 hover:border-amber-600 transition-all shadow-sm"
+                  >
+                    <Plus size={10} /> Add Button
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  {(!formData.customActions || formData.customActions.length === 0) ? (
+                    <p className="text-center py-2 text-[10px] text-slate-400 font-medium italic">No dynamic buttons defined.</p>
+                  ) : formData.customActions.map((action, index) => (
+                    <div key={index} className="grid grid-cols-12 gap-2 items-center bg-white p-2 rounded-xl border border-slate-100 shadow-sm">
+                      <div className="col-span-3">
+                        <input
+                          placeholder="Button Label"
+                          value={action.label}
+                          className="w-full text-[10px] font-bold bg-slate-50 border-none rounded-md px-2 py-1 focus:ring-1 focus:ring-amber-500"
+                          onChange={(e) => updateCustomAction(index, 'label', e.target.value)}
+                        />
+                      </div>
+                      <div className="col-span-8">
+                        <input
+                          placeholder="Action URL (use {{userId}} and {{secretToken}} placeholders)"
+                          value={action.url}
+                          className="w-full text-[10px] font-bold bg-slate-50 border-none rounded-md px-2 py-1 focus:ring-1 focus:ring-amber-500"
+                          onChange={(e) => updateCustomAction(index, 'url', e.target.value)}
+                        />
+                      </div>
+                      <div className="col-span-1 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => removeCustomAction(index)}
                           className="text-slate-300 hover:text-red-500 transition-colors"
                         >
                           <X size={14} />

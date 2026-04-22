@@ -10,7 +10,17 @@ export const PROVIDERS = {
     fieldMap: (data) => ({
       linkedin_personal_token: data.access_token,
       linkedin_personal_expires_at: Date.now() + (data.expires_in * 1000)
-    })
+    }),
+    postAuthFetch: async (accessToken, axios) => {
+      const response = await axios.get('https://api.linkedin.com/v2/userinfo', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
+      return {
+        linkedin_personal_urn: response.data.sub // 'sub' is the URN in the OpenID Connect flow
+      };
+    }
   },
   linkedin_social: {
     tokenUrl: 'https://www.linkedin.com/oauth/v2/accessToken',
