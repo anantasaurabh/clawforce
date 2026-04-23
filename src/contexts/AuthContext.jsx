@@ -100,11 +100,17 @@ export function AuthProvider({ children }) {
   setUserProfile(prev => ({ ...prev, ...data }));
   
   // Also update auth profile if displayName or photoURL is provided
+  // NOTE: Auth profile has a 2048 char limit on photoURL.
   if (data.displayName || data.photoURL) {
-   await updateAuthProfile(currentUser, {
-    displayName: data.displayName,
-    photoURL: data.photoURL
-   });
+   const authUpdate = {};
+   if (data.displayName) authUpdate.displayName = data.displayName;
+   if (data.photoURL && !data.photoURL.startsWith('data:')) {
+    authUpdate.photoURL = data.photoURL;
+   }
+
+   if (Object.keys(authUpdate).length > 0) {
+    await updateAuthProfile(currentUser, authUpdate);
+   }
   }
  }
 

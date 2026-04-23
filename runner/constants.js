@@ -6,6 +6,7 @@ export const COLLECTIONS = {
   PACKAGES: `artifacts/${APP_ID}/public/data/packages`,
   CATEGORIES: `artifacts/${APP_ID}/public/data/categories`,
   TASKS: `artifacts/${APP_ID}/public/data/tasks`,
+  PENDING_POSTS: `artifacts/${APP_ID}/public/data/pending_posts`,
   GLOBAL_VARS: `artifacts/${APP_ID}/public/data/globalVars`,
 };
 

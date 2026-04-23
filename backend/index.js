@@ -308,14 +308,83 @@ app.post('/api/:agentId/approve', validateReviewToken, async (req, res) => {
       return res.status(403).json({ error: 'Forbidden: Post does not belong to you' });
     }
 
+    let finalStatus;
+    if (action === 'approve') finalStatus = 'approved';
+    else if (action === 'pending') finalStatus = 'pending';
+    else finalStatus = 'rejected';
+
     await postRef.update({
-      status: action === 'approve' ? 'approved' : 'rejected',
+      status: finalStatus,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    res.json({ success: true, status: action === 'approve' ? 'approved' : 'rejected' });
+    res.json({ success: true, status: finalStatus });
   } catch (err) {
     console.error('[Approve] Failure:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Delete Post Endpoint
+ */
+app.post('/api/:agentId/delete', validateReviewToken, async (req, res) => {
+  const { userId, postId } = req.body;
+  const agentId = normalizeAgentId(req.params.agentId);
+
+  if (!postId) {
+    return res.status(400).json({ error: 'Missing postId' });
+  }
+
+  try {
+    const postRef = db.collection(`artifacts/clwhq-001/public/data/pending_posts`).doc(postId);
+    const postSnap = await postRef.get();
+
+    if (!postSnap.exists || postSnap.data().ownerId !== userId) {
+      return res.status(403).json({ error: 'Forbidden: Post does not belong to you' });
+    }
+
+    await postRef.delete();
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[Delete] Failure:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Batch Delete Posts
+ */
+app.post('/api/:agentId/batch-delete', validateReviewToken, async (req, res) => {
+  const { userId, postIds } = req.body;
+  const agentId = normalizeAgentId(req.params.agentId);
+
+  if (!Array.isArray(postIds) || postIds.length === 0) {
+    return res.status(400).json({ error: 'Missing postIds array' });
+  }
+
+  try {
+    const postsRef = db.collection(`artifacts/clwhq-001/public/data/pending_posts`);
+    const batch = db.batch();
+    let count = 0;
+
+    // We fetch to verify ownership for each post
+    const snapshots = await Promise.all(postIds.map(id => postsRef.doc(id).get()));
+    
+    snapshots.forEach(snap => {
+      if (snap.exists && snap.data().ownerId === userId) {
+        batch.delete(snap.ref);
+        count++;
+      }
+    });
+
+    if (count > 0) {
+      await batch.commit();
+    }
+
+    res.json({ success: true, count });
+  } catch (err) {
+    console.error('[BatchDelete] Failure:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -418,15 +487,24 @@ app.post('/api/posts/batch-create', validateReviewToken, async (req, res) => {
         content: post.content,
         mediaUrl: post.mediaUrl || null,
         status: post.status || 'pending',
+        targetUrn: post.targetUrn || null,
+        targetName: post.targetName || null,
+        targetPic: post.targetPic || null,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       };
 
-      if (post.scheduledAt) {
+      const scheduledAtVal = post.scheduledAt || post.scheduledFor;
+      if (scheduledAtVal) {
         try {
-          postData.scheduledAt = admin.firestore.Timestamp.fromDate(new Date(post.scheduledAt));
+          const date = new Date(scheduledAtVal);
+          if (!isNaN(date.getTime())) {
+            postData.scheduledAt = admin.firestore.Timestamp.fromDate(date);
+          } else {
+            console.warn(`[BatchCreate] Invalid date string received: ${scheduledAtVal}`);
+          }
         } catch (e) {
-          console.warn(`[BatchCreate] Invalid date for post: ${post.scheduledAt}`);
+          console.warn(`[BatchCreate] Error parsing date: ${scheduledAtVal}`, e.message);
         }
       }
 

@@ -16,12 +16,47 @@ try {
     const target = params.target || 'personal';
     const content = params.content;
 
-    // 2. Credential Validation
-    const token = target === 'personal' ? env.LINKEDIN_PERSONAL_TOKEN : env.LINKEDIN_COMMUNITY_TOKEN;
-    const urn = target === 'personal' ? env.LINKEDIN_PERSONAL_URN : env.LINKEDIN_COMMUNITY_URN;
+    // 2. Credential Validation & Selection
+    let token = env.LINKEDIN_PERSONAL_TOKEN;
+    let urn = env.LINKEDIN_PERSONAL_URN;
 
-    if (!token || !urn || token.includes("your_token")) {
-        sendError(`Missing ${target} credentials in context.env.`, "AUTH_FAILURE");
+    if (target === 'personal') {
+        token = env.LINKEDIN_PERSONAL_TOKEN || env.LINKEDIN_SOCIAL_TOKEN;
+        urn = env.LINKEDIN_PERSONAL_URN || env.LINKEDIN_SOCIAL_URN;
+    } else {
+        // Community/Organization Target
+        token = env.LINKEDIN_COMMUNITY_TOKEN || env.LINKEDIN_SOCIAL_TOKEN;
+        
+        // Check if explicit community URN is valid (not a placeholder)
+        const explicitUrn = env.LINKEDIN_COMMUNITY_URN;
+        const isExplicitValid = explicitUrn && !explicitUrn.includes('your_');
+
+        if (isExplicitValid) {
+            urn = explicitUrn;
+        } else if (env.LINKEDIN_PAGE_URN) {
+            try {
+                const pages = JSON.parse(env.LINKEDIN_PAGE_URN);
+                if (Array.isArray(pages) && pages.length > 0) {
+                    // If the user specified a page in the description, we could try to match it here
+                    // For now, default to the first one
+                    urn = pages[0].urn;
+                    // Clean prefix if present
+                    if (urn.startsWith('urn:li:organization:')) {
+                        urn = urn.replace('urn:li:organization:', '');
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to parse LINKEDIN_PAGE_URN JSON");
+            }
+        }
+    }
+
+    // Final sanity check for placeholders or missing values
+    const isTokenPlaceholder = typeof token === 'string' && token.includes("your_");
+    const isUrnPlaceholder = typeof urn === 'string' && urn.includes("your_");
+
+    if (!token || !urn || isTokenPlaceholder || isUrnPlaceholder) {
+        sendError(`Missing ${target} credentials. Please authorize LinkedIn Social in System Parameters or set explicit Community Tokens.`, "AUTH_FAILURE");
     }
 
     // 3. Post to LinkedIn using native https (no dependencies needed)

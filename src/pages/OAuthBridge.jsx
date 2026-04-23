@@ -12,7 +12,7 @@ const PROVIDER_CONFIGS = {
   linkedin_social: {
     authUrl: 'https://www.linkedin.com/oauth/v2/authorization',
     clientId: import.meta.env.VITE_LINKEDIN_SOCIAL_CLIENT_ID,
-    scope: 'w_member_social r_liteprofile'
+    scope: 'w_member_social r_basicprofile w_organization_social r_organization_social rw_organization_admin w_member_social_feed w_organization_social_feed r_organization_social_feed'
   },
   google: {
     authUrl: 'https://accounts.google.com/o/oauth2/v2/auth',

@@ -45,6 +45,8 @@ tasksQuery.onSnapshot(snapshot => {
  */
 async function processTask(taskId, task) {
   const { ownerId, agentId, objective, title, description } = task;
+  let agentReportedError = false;
+
   let message = objective || title || "No objective provided";
   if (description) {
     message += `\n\nContext/Description: ${description}`;
@@ -112,6 +114,7 @@ async function processTask(taskId, task) {
     ...globalVars, // Pass system-wide global vars (e.g. CLAWFORCE_BACKEND_URL)
     USER_ID: ownerId,
     TOKEN: globalReviewToken,
+    CURRENT_TIME: new Date().toISOString(),
     OPENCLAW_TASK_ID: taskId
   };
 
@@ -127,7 +130,11 @@ async function processTask(taskId, task) {
     context: {
       env: {
         ...finalSettings,
-        ...authorizations
+        ...authorizations,
+        ...globalVars,
+        USER_ID: ownerId,
+        TOKEN: globalReviewToken,
+        CURRENT_TIME: env.CURRENT_TIME
       }
     }
   };
@@ -164,6 +171,12 @@ async function processTask(taskId, task) {
             console.log(`[Task ${taskId}] Detected agent comment via JSON.`);
             addComment(taskId, 'agent', content, agentId);
           }
+
+          if (json.status === 'error') {
+            console.log(`[Task ${taskId}] Agent reported an error: ${content}`);
+            agentReportedError = true;
+            addComment(taskId, 'agent', `⚠️ Error: ${content}`, agentId);
+          }
         } catch (e) {
           // Not valid JSON or not our format, ignore
         }
@@ -187,7 +200,7 @@ async function processTask(taskId, task) {
   // 5. Handle Exit
   clawProcess.on('close', async (code) => {
     console.log(`[Task ${taskId}] Process exited with code ${code}`);
-    const finalStatus = code === 0 ? 'completed' : 'failed';
+    const finalStatus = (code === 0 && !agentReportedError) ? 'completed' : 'failed';
     await updateTaskStatus(taskId, finalStatus, {
       endTime: admin.firestore.FieldValue.serverTimestamp(),
       exitCode: code

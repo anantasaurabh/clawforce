@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
 import { X, User, Lock, Camera, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage } from '../firebase.js';
-import { cn } from '../utils/cn'; // Assuming there's a cn utility, or I'll define it locally
+import { cn } from '../utils/cn';
 
 export default function ProfileModal({ isOpen, onClose }) {
   const { currentUser, userProfile, updateProfileData, updatePassword } = useAuth();
@@ -48,14 +46,46 @@ export default function ProfileModal({ isOpen, onClose }) {
     setStatus(null);
 
     try {
-      const storageRef = ref(storage, `avatars/${currentUser.uid}`);
-      await uploadBytes(storageRef, file);
-      const photoURL = await getDownloadURL(storageRef);
-      await updateProfileData({ photoURL });
-      setStatus({ type: 'success', message: 'Avatar updated!' });
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = async () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 400; // Profile pics can be smaller
+          const MAX_HEIGHT = 400;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Convert to a slightly compressed JPEG Base64 string
+          const resizedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+          
+          await updateProfileData({ photoURL: resizedBase64 });
+          setStatus({ type: 'success', message: 'Avatar updated!' });
+          setUploading(false);
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
     } catch (err) {
-      setStatus({ type: 'error', message: 'Failed to upload image' });
-    } finally {
+      console.error('Upload error:', err);
+      setStatus({ type: 'error', message: 'Failed to process image.' });
       setUploading(false);
     }
   }
