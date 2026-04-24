@@ -28,3 +28,4 @@ runner/.env
 runner/service-account.json
 backend/service-account.json
 landing-page/service-account.json
+vite.config.js
