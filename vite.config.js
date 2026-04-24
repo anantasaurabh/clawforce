@@ -12,12 +12,12 @@ export default defineConfig({
     port: 3050,
     strictPort: true,
     host: true,
-    allowedHosts: ["hq-clawforce.altovation.in"]
+    allowedHosts: ["hq-clawforce.altovation.in", "dev-hq-clawforce.altovation.in"]
   },
   preview: {
     port: 3050,
     strictPort: true,
     host: true,
-    allowedHosts: ["hq-clawforce.altovation.in"]
+    allowedHosts: ["hq-clawforce.altovation.in", "dev-hq-clawforce.altovation.in"]
   }
 })

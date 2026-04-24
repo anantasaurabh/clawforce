@@ -1,7 +1,7 @@
 import admin from 'firebase-admin';
 import axios from 'axios';
 import dotenv from 'dotenv';
-import { COLLECTIONS, getUserAuthsPath } from './constants.js';
+import { COLLECTIONS, getUserAuthsPath, getUserConfigPath } from './constants.js';
 
 dotenv.config();
 
@@ -26,11 +26,9 @@ async function runScheduler() {
   try {
     const now = new Date();
     
-    // 1. Fetch all approved posts scheduled for now or in the past
+    // 1. Fetch all approved posts (Filter scheduledAt in memory to avoid index requirement)
     const postsRef = db.collection(COLLECTIONS.PENDING_POSTS);
-    const q = postsRef
-      .where('status', '==', 'approved')
-      .where('scheduledAt', '<=', admin.firestore.Timestamp.fromDate(now));
+    const q = postsRef.where('status', '==', 'approved');
     
     const snap = await q.get();
     
@@ -39,9 +37,20 @@ async function runScheduler() {
       process.exit(0);
     }
 
-    console.log(`🚀 Found ${snap.size} posts ready for publication.`);
+    // Filter by date in memory
+    const readyPosts = snap.docs.filter(doc => {
+      const data = doc.data();
+      return data.scheduledAt && data.scheduledAt.toDate() <= now;
+    });
 
-    for (const doc of snap.docs) {
+    if (readyPosts.length === 0) {
+      console.log('⏳ Approved posts exist, but none are due for publication yet.');
+      process.exit(0);
+    }
+
+    console.log(`🚀 Found ${readyPosts.length} posts ready for publication.`);
+
+    for (const doc of readyPosts) {
       const post = doc.data();
       const postId = doc.id;
       
@@ -60,6 +69,17 @@ async function runScheduler() {
             }
           }
         });
+
+        // 2.1 Fetch Global Shared Parameters (Single Source of Truth)
+        const userConfigPath = getUserConfigPath(post.ownerId);
+        const userConfigSnap = await db.doc(userConfigPath).get();
+        const userConfig = userConfigSnap.exists ? userConfigSnap.data() : {};
+        const sharedParameters = userConfig.sharedParameters || {};
+
+        // Merge shared parameters into auths (uppercase for consistency)
+        for (const [key, value] of Object.entries(sharedParameters)) {
+          auths[key.toUpperCase()] = value;
+        }
 
         // 3. Delegate to specific publisher based on agentId
         let result;
@@ -134,28 +154,28 @@ async function publishToLinkedIn(post, auths) {
         console.error("Failed to parse LINKEDIN_PAGE_URN JSON in scheduler");
       }
     }
+  }
 
-    // Clean prefix if present
-    if (urn && typeof urn === 'string' && urn.startsWith('urn:li:organization:')) {
-      urn = urn.replace('urn:li:organization:', '');
+    // Resolve full URN (Preserve prefix if present)
+    const authorUrn = urn && typeof urn === 'string' && urn.includes(':') 
+      ? urn 
+      : (target === 'personal' ? `urn:li:person:${urn}` : `urn:li:organization:${urn}`);
+
+    if (!token || !urn) {
+      throw new Error(`Missing credentials for LinkedIn ${target} publication.`);
     }
-  }
 
-  if (!token || !urn || (typeof token === 'string' && token.includes('your_'))) {
-    throw new Error(`Missing LinkedIn ${target} credentials (TOKEN/URN) for owner ${post.ownerId}`);
-  }
-
-  const postData = {
-    author: target === 'personal' ? `urn:li:person:${urn}` : `urn:li:organization:${urn}`,
-    lifecycleState: "PUBLISHED",
-    specificContent: {
-      "com.linkedin.ugc.ShareContent": {
-        shareCommentary: { text: post.content },
-        shareMediaCategory: "NONE"
-      }
-    },
-    visibility: { "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC" }
-  };
+    const postData = {
+        author: authorUrn,
+        lifecycleState: "PUBLISHED",
+        specificContent: {
+            "com.linkedin.ugc.ShareContent": {
+                shareCommentary: { text: post.content },
+                shareMediaCategory: "NONE"
+            }
+        },
+        visibility: { "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC" }
+    };
 
   // Support for media categories if mediaUrl is provided
   if (post.mediaUrl) {

@@ -68,11 +68,25 @@ export default function AgentDetails() {
 
   // Deployment Modal State
   const [showDeployModal, setShowDeployModal] = useState(false);
-  const [credentials, setCredentials] = useState({});
+  const [sharedParams, setSharedParams] = useState({});
+  const [userConfig, setUserConfig] = useState(null);
   const [isConfiguring, setIsConfiguring] = useState(false);
 
   const hasSchema = agent?.configSchema && agent.configSchema.length > 0;
-  const isConfigured = !hasSchema || config?.isConfigured;
+  // For global only mode, an agent is considered configured if all its schema fields exist in either authorizations or sharedParams
+  const isConfigured = !hasSchema || agent.configSchema.every(field => {
+     const pool = { ...sharedParams };
+     Object.values(userAuthorizations).forEach(auth => {
+        if (auth.credentials) {
+           Object.entries(auth.credentials).forEach(([k, v]) => {
+              pool[k] = v;
+              pool[k.toLowerCase()] = v;
+              pool[k.toUpperCase()] = v;
+           });
+        }
+     });
+     return !!(pool[field.key] || pool[field.key.toLowerCase()] || pool[field.key.toUpperCase()]);
+  });
 
   // Task Creation State
   const [showTaskModal, setShowTaskModal] = useState(false);
@@ -134,11 +148,12 @@ export default function AgentDetails() {
 
       // Get user config (Resilient)
       try {
-        const configData = await configService.getAgentSettings(currentUser.uid, id);
+        const [configData, userCfg] = await Promise.all([
+          configService.getAgentSettings(currentUser.uid, id),
+          configService.getUserConfig(currentUser.uid)
+        ]);
         setConfig(configData);
-        if (configData?.credentials) {
-          setCredentials(configData.credentials);
-        }
+        setUserConfig(userCfg);
 
         // Auto-redirect to config if not configured
         const hasSchema = agentData.configSchema && agentData.configSchema.length > 0;
@@ -146,9 +161,15 @@ export default function AgentDetails() {
           setActiveTab('config');
         }
 
-        // Initialize/Fetch Secret Tokens for Review Actions
-        await configService.initializeReviewToken(currentUser.uid, id);
+        // Initialize/Fetch Global Secret Token for Handshakes
         await configService.initializeGlobalReviewToken(currentUser.uid);
+        
+        // Re-sync after token initialization if it was missing
+        const finalUser = await configService.getUserConfig(currentUser.uid);
+        setUserConfig(finalUser);
+        if (finalUser?.sharedParameters) {
+          setSharedParams(finalUser.sharedParameters);
+        }
       } catch (cfgErr) {
         console.warn('Agent configuration could not be loaded:', cfgErr);
       }
@@ -257,13 +278,11 @@ export default function AgentDetails() {
     e.preventDefault();
     try {
       setIsConfiguring(true);
-      await configService.updateAgentSettings(currentUser.uid, id, credentials);
-      const newConfig = await configService.getAgentSettings(currentUser.uid, id);
-      setConfig(newConfig);
+      await configService.updateSharedParameters(currentUser.uid, sharedParams);
       setShowDeployModal(false);
     } catch (err) {
       console.error('Error saving config:', err);
-      alert('Failed to save configuration.');
+      alert('Failed to save shared parameters.');
     } finally {
       setIsConfiguring(false);
     }
@@ -633,8 +652,8 @@ export default function AgentDetails() {
                         {agent.customActions.map((action, idx) => {
                           const processedUrl = action.url
                             .replace('{{userId}}', currentUser.uid)
-                            .replace('{{secretToken}}', config?.reviewSecretToken || '')
-                            .replace('{{globalToken}}', config?.globalReviewToken || '');
+                            .replace('{{secretToken}}', userConfig?.globalReviewToken || '')
+                            .replace('{{globalToken}}', userConfig?.globalReviewToken || '');
 
                           return (
                             <a
@@ -939,9 +958,8 @@ export default function AgentDetails() {
                 ) : (
                   <>
                     {agent.configSchema.map((field) => {
-                      // Merge local credentials with global shared authorizations (Case-Insensitive)
-                      // Normalized pool of all global credentials
-                      const globalPool = {};
+                      // Aggregate all global/shared parameters
+                      const globalPool = { ...sharedParams };
                       Object.values(userAuthorizations).forEach(auth => {
                         if (auth.credentials) {
                           Object.entries(auth.credentials).forEach(([k, v]) => {
@@ -951,19 +969,22 @@ export default function AgentDetails() {
                           });
                         }
                       });
-                      
-                      const displayValue = credentials[field.key] || 
-                                          globalPool[field.key] || 
+
+                      const displayValue = globalPool[field.key] || 
                                           globalPool[field.key.toLowerCase()] || 
                                           globalPool[field.key.toUpperCase()] || '';
                       
+                      const isAuthShared = !sharedParams[field.key] && !!displayValue;
+                      
                       return (
                         <div key={field.key} className="space-y-3">
-                          <label className="text-[11px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
-                            {field.label}
-                            {displayValue && field.key.toLowerCase().includes('urn') && (
-                              <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-600 rounded text-[8px] font-black">Shared</span>
-                            )}
+                          <label className="text-[11px] font-bold uppercase tracking-widest text-slate-400 flex items-center justify-between group/label">
+                            <div className="flex items-center gap-2">
+                              {field.label}
+                              <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-600 rounded text-[8px] font-black uppercase">
+                                {isAuthShared ? 'OAuth Sync' : 'User Shared'}
+                              </span>
+                            </div>
                           </label>
                           <div className="relative group">
                             <input
@@ -971,7 +992,7 @@ export default function AgentDetails() {
                               value={displayValue}
                               disabled
                               className={cn(
-                                "w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-xl font-bold focus:outline-none cursor-not-allowed",
+                                "w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-xl font-bold focus:outline-none cursor-not-allowed transition-all",
                                 field.type === 'password' ? "text-slate-400 italic" : "text-slate-900 shadow-sm"
                               )}
                               placeholder={field.type === 'password' ? '••••••••••••••••' : `Enter ${field.label}`}
@@ -1022,9 +1043,9 @@ export default function AgentDetails() {
                       required={field.required !== false}
                       type={field.type === 'password' ? 'password' : 'text'}
                       placeholder={field.type === 'password' ? 'Paste your secure key here...' : `e.g. ${field.label}`}
-                      value={credentials[field.key] || ''}
+                      value={sharedParams[field.key] || ''}
                       className="w-full border-b border-slate-100 py-3 focus:outline-none focus:border-brand-primary transition-colors font-bold text-slate-900"
-                      onChange={(e) => setCredentials({ ...credentials, [field.key]: e.target.value })}
+                      onChange={(e) => setSharedParams({ ...sharedParams, [field.key]: e.target.value })}
                     />
                   </div>
                 ))}

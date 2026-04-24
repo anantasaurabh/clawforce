@@ -12,13 +12,21 @@ export const PROVIDERS = {
       linkedin_personal_expires_at: Date.now() + (data.expires_in * 1000)
     }),
     postAuthFetch: async (accessToken, axios) => {
-      const response = await axios.get('https://api.linkedin.com/v2/userinfo', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`
-        }
-      });
+      const headers = { Authorization: `Bearer ${accessToken}` };
+      // For personal (OpenID Connect), /userinfo is the correct endpoint for name/pic
+      const url = 'https://api.linkedin.com/v2/userinfo';
+      const res = await axios.get(url, { headers });
+      const data = res.data;
+      
+      const name = data.name || `${data.given_name} ${data.family_name}`.trim() || 'Personal Profile';
+      const urn = `urn:li:person:${data.sub}`;
+      const pic = data.picture || null;
+
+      const personalInfo = [{ name, urn, pic }];
+
       return {
-        linkedin_personal_urn: response.data.sub // 'sub' is the URN in the OpenID Connect flow
+        linkedin_personal_urn: JSON.stringify(personalInfo),
+        LINKEDIN_PERSONAL_INFO: JSON.stringify(personalInfo)
       };
     }
   },
@@ -36,9 +44,27 @@ export const PROVIDERS = {
         'X-Restli-Protocol-Version': '2.0.0'
       };
 
-      // 1. Fetch Member ID
-      const meRes = await axios.get('https://api.linkedin.com/v2/me', { headers });
-      const memberId = meRes.data.id;
+      // 1. Fetch Member ID & Personal Profile Info
+      const meRes = await axios.get('https://api.linkedin.com/v2/me?projection=(id,localizedFirstName,localizedLastName,profilePicture(displayImage~:playableStreams))', { headers });
+      const meData = meRes.data;
+      const memberId = meData.id;
+      
+      const firstName = meData.localizedFirstName || '';
+      const lastName = meData.localizedLastName || '';
+      const personalName = `${firstName} ${lastName}`.trim() || 'Personal Profile';
+      const personalUrn = `urn:li:person:${memberId}`;
+      let personalPic = null;
+      try {
+        const picElements = meData.profilePicture?.['displayImage~']?.elements || [];
+        for (const el of picElements) {
+          if (el.identifiers && el.identifiers[0] && el.identifiers[0].identifier) {
+            personalPic = el.identifiers[0].identifier;
+            break;
+          }
+        }
+      } catch (e) {}
+
+      const personalInfo = [{ name: personalName, urn: personalUrn, pic: personalPic }];
 
       try {
         // 2. Fetch Managed Organizations (Administrators) - Get URNs first
@@ -47,12 +73,7 @@ export const PROVIDERS = {
         
         const urns = (orgsAclRes.data.elements || []).map(el => el.organizationalTarget);
         
-        if (urns.length === 0) {
-          return { linkedin_social_urn: memberId, LINKEDIN_PAGE_URN: '[]' };
-        }
-
-        // 3. Fetch details individually but in parallel to avoid batch throttle
-        // We use a combined projection to get name, vanityName, and logo in one hit
+        // 3. Fetch details individually but in parallel
         const organizations = await Promise.all(urns.map(async (urn) => {
           try {
             const isBrand = urn.includes('organizationBrand');
@@ -62,41 +83,38 @@ export const PROVIDERS = {
             
             const res = await axios.get(url, { headers });
             const data = res.data;
-            
-            // Extract Name
             const name = data.localizedName || data.vanityName || urn;
             
-            // Extract Logo (Pic) - Navigate the complex playableStreams structure
             let pic = null;
             try {
               const elements = data.logoV2?.['original~']?.elements || [];
-              // Find the first available external URL
               for (const el of elements) {
                 if (el.identifiers && el.identifiers[0] && el.identifiers[0].identifier) {
                   pic = el.identifiers[0].identifier;
                   break;
                 }
               }
-            } catch (e) {
-              console.warn(`[LinkedIn] Logo extraction failed for ${urn}`);
-            }
+            } catch (e) {}
 
             return { name, urn, pic };
           } catch (e) {
-            console.error(`[LinkedIn] Failed to fetch details for ${urn}:`, e.message);
             return { name: urn, urn, pic: null };
           }
         }));
 
         return {
           linkedin_social_urn: memberId,
-          LINKEDIN_PAGE_URN: JSON.stringify(organizations)
+          LINKEDIN_PAGE_URN: JSON.stringify(organizations),
+          LINKEDIN_PERSONAL_INFO: JSON.stringify(personalInfo),
+          linkedin_personal_urn: JSON.stringify(personalInfo)
         };
       } catch (err) {
         console.error('[LinkedIn PostAuth] Overall fetch failed:', err.response?.data || err.message);
         return {
           linkedin_social_urn: memberId,
-          LINKEDIN_PAGE_URN: '[]'
+          LINKEDIN_PAGE_URN: '[]',
+          LINKEDIN_PERSONAL_INFO: JSON.stringify(personalInfo),
+          linkedin_personal_urn: JSON.stringify(personalInfo)
         };
       }
     }

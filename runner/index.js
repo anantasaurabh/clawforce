@@ -93,11 +93,18 @@ async function processTask(taskId, task) {
   console.log(`[Task ${taskId}] Message: "${message}"`);
 
 
-  // 2.2 Fetch User's Global Review Token
-  const userConfigRef = db.collection(`artifacts/clwhq-001/userConfigs`).doc(ownerId);
-  const userConfigSnap = await userConfigRef.get();
+  // 2.2 Fetch User's Global Review Token & Shared Parameters
+  const userConfigPath = getUserConfigPath(ownerId);
+  const userConfigSnap = await db.doc(userConfigPath).get();
   const userConfig = userConfigSnap.exists ? userConfigSnap.data() : {};
   const globalReviewToken = userConfig.globalReviewToken || '';
+  const sharedParameters = userConfig.sharedParameters || {};
+
+  // Merge shared parameters into authorizations (uppercase them for env vars)
+  for (const [key, value] of Object.entries(sharedParameters)) {
+    authorizations[key] = value;
+    authorizations[key.toUpperCase()] = value;
+  }
 
   // 2.3 Fetch System-wide Global Variables
   const globalVarsRef = db.collection(COLLECTIONS.GLOBAL_VARS).doc('settings');

@@ -33,25 +33,56 @@ try {
     }
 
     // 2. Prepare Payload for Backend
-    // Try to find the default or matched organization info from LINKEDIN_PAGE_URN
-    let defaultTarget = { urn: null, name: null, pic: null };
-    if (env.LINKEDIN_PAGE_URN || env.linkedin_page_urn) {
+    // Collect all possible targets (Pages and Personal Accounts)
+    let allTargets = [];
+    const getEnv = (key) => env[key] || process.env[key] || env[key.toLowerCase()] || process.env[key.toLowerCase()];
+    
+    // Add Pages
+    const rawPages = getEnv('LINKEDIN_PAGE_URN');
+    if (rawPages) {
         try {
-            const rawPages = env.LINKEDIN_PAGE_URN || env.linkedin_page_urn;
             const pages = JSON.parse(rawPages);
-            if (Array.isArray(pages) && pages.length > 0) {
-                // For now, we use the first one as default if not specified per post
-                defaultTarget = { 
-                    urn: pages[0].urn, 
-                    name: pages[0].name, 
-                    pic: pages[0].pic 
-                };
+            if (Array.isArray(pages)) allTargets.push(...pages);
+        } catch (e) {
+            // If it's a raw URN string, create a minimal target object
+            if (rawPages.includes('urn:li:')) {
+                allTargets.push({ urn: rawPages, name: 'Target Page', pic: null });
             }
-        } catch (e) {}
+        }
+    }
+    
+    // Add Personal Account Info (check multiple possible keys)
+    const personalKeys = ['LINKEDIN_PERSONAL_INFO', 'LINKEDIN_PERSONAL_URN'];
+    for (const key of personalKeys) {
+        const val = getEnv(key);
+        if (val && val.startsWith('[')) {
+            try {
+                const personal = JSON.parse(val);
+                if (Array.isArray(personal)) {
+                    // Avoid duplicates
+                    personal.forEach(p => {
+                        if (!allTargets.find(t => t.urn === p.urn)) allTargets.push(p);
+                    });
+                }
+            } catch (e) {}
+        } else if (val && val.includes('urn:li:person:')) {
+             if (!allTargets.find(t => t.urn === val)) {
+                allTargets.push({ urn: val, name: 'Personal Account', pic: null });
+             }
+        }
+    }
+
+    let defaultTarget = { urn: null, name: null, pic: null };
+    if (allTargets.length > 0) {
+        defaultTarget = { 
+            urn: allTargets[0].urn, 
+            name: allTargets[0].name, 
+            pic: allTargets[0].pic 
+        };
     }
 
     if (!defaultTarget.urn) {
-        console.warn(`[Schedule] Warning: No LinkedIn Organization found in environment. Posts will have null targets.`);
+        console.warn(`[Schedule] Warning: No LinkedIn accounts found in environment.`);
     }
 
     const payloadObj = {

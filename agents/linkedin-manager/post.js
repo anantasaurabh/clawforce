@@ -16,40 +16,76 @@ try {
     const target = params.target || 'personal';
     const content = params.content;
 
-    // 2. Credential Validation & Selection
-    let token = env.LINKEDIN_PERSONAL_TOKEN;
-    let urn = env.LINKEDIN_PERSONAL_URN;
+    // 2. Credential Validation & Selection (With fallback to process.env)
+    const getEnv = (key) => env[key] || process.env[key];
+    
+    let token = null;
+    let tokenKey = "NONE";
+    
+    const findToken = (keys) => {
+        for (const k of keys) {
+            const val = getEnv(k);
+            if (val && !val.includes("your_")) {
+                tokenKey = k;
+                return val;
+            }
+        }
+        return null;
+    };
+
+    let urn = null;
+    let urnKey = "NONE";
+
+    // Helper to extract URN from potential JSON array or raw string
+    const resolveUrn = (val) => {
+        if (!val) return null;
+        if (typeof val === 'string' && val.startsWith('[')) {
+            try {
+                const arr = JSON.parse(val);
+                return arr[0]?.urn;
+            } catch (e) { return val; }
+        }
+        return val;
+    };
 
     if (target === 'personal') {
-        token = env.LINKEDIN_PERSONAL_TOKEN || env.LINKEDIN_SOCIAL_TOKEN;
-        urn = env.LINKEDIN_PERSONAL_URN || env.LINKEDIN_SOCIAL_URN;
+        token = findToken(['LINKEDIN_PERSONAL_TOKEN', 'linkedin_personal_token', 'LINKEDIN_SOCIAL_TOKEN']);
+        const rawUrn = getEnv('LINKEDIN_PERSONAL_URN') || getEnv('linkedin_personal_urn') || getEnv('LINKEDIN_SOCIAL_URN');
+        urn = resolveUrn(rawUrn);
+        urnKey = rawUrn ? "LINKEDIN_PERSONAL_URN" : "NONE";
     } else {
         // Community/Organization Target
-        token = env.LINKEDIN_COMMUNITY_TOKEN || env.LINKEDIN_SOCIAL_TOKEN;
+        token = findToken(['LINKEDIN_COMMUNITY_TOKEN', 'LINKEDIN_SOCIAL_TOKEN', 'linkedin_social_token']);
         
         // Check if explicit community URN is valid (not a placeholder)
-        const explicitUrn = env.LINKEDIN_COMMUNITY_URN;
+        const explicitUrn = getEnv('LINKEDIN_COMMUNITY_URN');
         const isExplicitValid = explicitUrn && !explicitUrn.includes('your_');
 
         if (isExplicitValid) {
             urn = explicitUrn;
-        } else if (env.LINKEDIN_PAGE_URN) {
-            try {
-                const pages = JSON.parse(env.LINKEDIN_PAGE_URN);
-                if (Array.isArray(pages) && pages.length > 0) {
-                    // If the user specified a page in the description, we could try to match it here
-                    // For now, default to the first one
-                    urn = pages[0].urn;
-                    // Clean prefix if present
-                    if (urn.startsWith('urn:li:organization:')) {
-                        urn = urn.replace('urn:li:organization:', '');
+            urnKey = "LINKEDIN_COMMUNITY_URN";
+        } else {
+            const pageUrnRaw = getEnv('LINKEDIN_PAGE_URN') || getEnv('linkedin_social_urn');
+            if (pageUrnRaw) {
+                urnKey = "LINKEDIN_PAGE_URN";
+                try {
+                    const pages = JSON.parse(pageUrnRaw);
+                    if (Array.isArray(pages) && pages.length > 0) {
+                        urn = pages[0].urn;
                     }
+                } catch (e) {
+                    urn = pageUrnRaw; // Fallback to raw string
                 }
-            } catch (e) {
-                console.error("Failed to parse LINKEDIN_PAGE_URN JSON");
             }
         }
     }
+
+    // Clean prefix for organization URNs if they contain the full URN string
+    // but the API expects just the ID part (or vice versa)
+    // Actually, ugcPosts author usually wants the full URN.
+    // However, our code was stripping it before. 
+    // Let's ensure we have the numeric part if needed, but usually full URN is safer.
+    // Preserve full URN if available
 
     // Final sanity check for placeholders or missing values
     const isTokenPlaceholder = typeof token === 'string' && token.includes("your_");
@@ -59,9 +95,20 @@ try {
         sendError(`Missing ${target} credentials. Please authorize LinkedIn Social in System Parameters or set explicit Community Tokens.`, "AUTH_FAILURE");
     }
 
+    // Masked token for logging
+    const maskedToken = typeof token === 'string' ? (token.substring(0, 5) + "..." + token.substring(token.length - 5)) : "N/A";
+    const fullUrn = target === 'personal' ? `urn:li:person:${urn}` : `urn:li:organization:${urn}`;
+    
+    console.log(JSON.stringify({
+        type: "log",
+        content: `Initiating post to ${target} URN: ${fullUrn} (via ${urnKey}). Using token from ${tokenKey} (${maskedToken})`
+    }));
+
     // 3. Post to LinkedIn using native https (no dependencies needed)
+    const authorUrn = urn.includes(':') ? urn : (target === 'personal' ? `urn:li:person:${urn}` : `urn:li:organization:${urn}`);
+    
     const postData = JSON.stringify({
-        author: target === 'personal' ? `urn:li:person:${urn}` : `urn:li:organization:${urn}`,
+        author: authorUrn,
         lifecycleState: "PUBLISHED",
         specificContent: {
             "com.linkedin.ugc.ShareContent": {

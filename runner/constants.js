@@ -10,5 +10,6 @@ export const COLLECTIONS = {
   GLOBAL_VARS: `artifacts/${APP_ID}/public/data/globalVars`,
 };
 
-export const getUserConfigPath = (userId) => `artifacts/${APP_ID}/userConfigs/${userId}/agentSettings`;
+export const getUserConfigPath = (userId) => `artifacts/${APP_ID}/userConfigs/${userId}`;
+export const getUserAgentSettingsPath = (userId) => `artifacts/${APP_ID}/userConfigs/${userId}/agentSettings`;
 export const getUserAuthsPath = (userId) => `artifacts/${APP_ID}/userAuthorizations/${userId}/providers`;

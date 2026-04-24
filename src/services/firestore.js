@@ -140,33 +140,36 @@ export const configService = {
     return snap.exists() ? snap.data() : null;
   },
 
-  async updateAgentSettings(userId, agentId, credentials) {
+  async updateAgentSettings(userId, agentId, data) {
     const ref = doc(db, getUserConfigPath(userId), agentId);
     await setDoc(ref, {
-      credentials,
+      ...data,
       isConfigured: true,
       updatedAt: serverTimestamp()
     }, { merge: true });
   },
 
-  async initializeReviewToken(userId, agentId) {
-    const ref = doc(db, getUserConfigPath(userId), agentId);
-    const snap = await getDoc(ref);
-    const data = snap.data();
-    
-    if (data?.reviewSecretToken) return data.reviewSecretToken;
+  async getSharedParameters(userId) {
+    const data = await this.getUserConfig(userId);
+    return data?.sharedParameters || {};
+  },
 
-    const newToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  async getUserConfig(userId) {
+    const ref = doc(db, `artifacts/clwhq-001/userConfigs`, userId);
+    const snap = await getDoc(ref);
+    return snap.exists() ? snap.data() : null;
+  },
+
+  async updateSharedParameters(userId, params) {
+    const ref = doc(db, `artifacts/clwhq-001/userConfigs`, userId);
     await setDoc(ref, {
-      reviewSecretToken: newToken,
+      sharedParameters: params,
       updatedAt: serverTimestamp()
     }, { merge: true });
-
-    return newToken;
   },
 
   async initializeGlobalReviewToken(userId) {
-    const ref = doc(db, `artifacts/${APP_ID}/userConfigs`, userId);
+    const ref = doc(db, `artifacts/clwhq-001/userConfigs`, userId);
     const snap = await getDoc(ref);
     const data = snap.data();
     
