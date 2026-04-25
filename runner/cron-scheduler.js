@@ -136,8 +136,16 @@ async function publishToLinkedIn(post, auths) {
   let urn = auths.LINKEDIN_PERSONAL_URN;
 
   if (target === 'personal') {
-    token = auths.LINKEDIN_PERSONAL_TOKEN || auths.LINKEDIN_SOCIAL_TOKEN;
-    urn = auths.LINKEDIN_PERSONAL_URN || auths.LINKEDIN_SOCIAL_URN;
+    // Prioritize Social Token as it's generally more reliable for posting
+    token = auths.LINKEDIN_SOCIAL_TOKEN || auths.LINKEDIN_PERSONAL_TOKEN;
+    
+    // Select the URN that matches our chosen token to avoid 401 mismatch errors
+    if (auths.LINKEDIN_SOCIAL_TOKEN) {
+      // Favor the specific personal URN from the social handshake if available
+      urn = auths.LINKEDIN_SOCIAL_PERSONAL_URN || auths.LINKEDIN_SOCIAL_URN || auths.LINKEDIN_PERSONAL_URN;
+    } else {
+      urn = auths.LINKEDIN_PERSONAL_URN || auths.LINKEDIN_SOCIAL_URN;
+    }
   } else {
     // Community/Organization Target
     token = auths.LINKEDIN_COMMUNITY_TOKEN || auths.LINKEDIN_SOCIAL_TOKEN;

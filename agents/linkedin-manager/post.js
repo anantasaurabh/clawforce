@@ -51,8 +51,8 @@ try {
     if (target === 'personal') {
         token = findToken(['LINKEDIN_SOCIAL_TOKEN', 'linkedin_social_token', 'LINKEDIN_PERSONAL_TOKEN', 'linkedin_personal_token']);
         // Priority: Use the URN that matches our chosen token provider to avoid mismatch
-        const personalUrnKeys = (tokenKey.includes('SOCIAL')) 
-            ? ['linkedin_social_personal_urn', 'LINKEDIN_SOCIAL_URN', 'LINKEDIN_PERSONAL_URN'] 
+        const personalUrnKeys = (tokenKey.includes('SOCIAL'))
+            ? ['linkedin_social_personal_urn', 'LINKEDIN_SOCIAL_URN', 'LINKEDIN_PERSONAL_URN']
             : ['LINKEDIN_PERSONAL_URN', 'linkedin_personal_urn', 'LINKEDIN_SOCIAL_URN'];
 
         const rawUrn = findToken(personalUrnKeys);
@@ -110,7 +110,7 @@ try {
     }));
 
     // 3. Post to LinkedIn using native https (no dependencies needed)
-    const authorUrn = urn.includes(':') ? urn.replace('urn:li:person:', 'urn:li:member:') : (target === 'personal' ? `urn:li:member:${urn}` : `urn:li:organization:${urn}`);
+    const authorUrn = urn.includes(':') ? urn : (target === 'personal' ? `urn:li:person:${urn}` : `urn:li:organization:${urn}`);
 
     const postData = JSON.stringify({
         author: authorUrn,
