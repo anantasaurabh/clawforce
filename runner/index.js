@@ -1,7 +1,7 @@
 import admin from 'firebase-admin';
 import { spawn } from 'child_process';
 import dotenv from 'dotenv';
-import { COLLECTIONS, getUserConfigPath, getUserAuthsPath } from './constants.js';
+import { COLLECTIONS, getUserConfigPath, getUserAgentSettingsPath, getUserAuthsPath } from './constants.js';
 
 dotenv.config();
 
@@ -57,7 +57,7 @@ async function processTask(taskId, task) {
   await updateTaskStatus(taskId, 'in-progress', { startTime: admin.firestore.FieldValue.serverTimestamp() });
 
   // 2. Fetch Agent Settings (API Keys, etc.)
-  const settingsPath = getUserConfigPath(ownerId);
+  const settingsPath = getUserAgentSettingsPath(ownerId);
   const settingsDoc = await db.collection(settingsPath).doc(agentId).get();
   const settings = settingsDoc.exists ? settingsDoc.data() : {};
   console.log(`[Task ${taskId}] Owner ID: ${ownerId}`);
