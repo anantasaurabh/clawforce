@@ -3,9 +3,14 @@ import axios from 'axios';
 import dotenv from 'dotenv';
 import { COLLECTIONS, getUserAuthsPath, getUserConfigPath } from './constants.js';
 
+import { fileURLToPath } from 'url';
+import path from 'path';
+
 dotenv.config();
 
-const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || './service-account.json';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const defaultServiceAccountPath = path.join(__dirname, 'service-account.json');
+const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || defaultServiceAccountPath;
 
 // Initialize Firebase Admin
 if (admin.apps.length === 0) {
