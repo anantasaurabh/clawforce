@@ -1,0 +1,15 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // --- EMERGENCY DEBUG: ALLOW ALL ---
+    // If this still gives "insufficient permissions", then either:
+    // 1. You are applying rules to the wrong project (check .env VITE_FIREBASE_PROJECT_ID)
+    // 2. The path in the database is completely different
+    match /{document=**} {
+      allow read, write: if true;
+    }
+    
+  }
+}

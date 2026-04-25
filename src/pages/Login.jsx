@@ -23,37 +23,14 @@ export default function Login() {
   try {
    setError('');
    setLoading(true);
-   
-   // Try real login first
-   const adminEmail = import.meta.env.VITE_ADMIN_EMAIL;
-   const adminPassword = import.meta.env.VITE_ADMIN_PASSWORD;
-
-   if (email !== adminEmail) {
+      // Authenticate with Firebase
     await login(email, password);
     navigate('/');
-    return;
-   }
-
-   // Handle Mock Login
-   if (email === adminEmail && password === adminPassword) {
-    mockLogin();
-    navigate('/');
-   } else {
-    setError('Invalid Security Key for Super Admin identity.');
-   }
   } catch (err) {
-   setError('Authorization failed. Please verify your personnel credentials.');
-   console.error(err);
-   
-   // MOCK LOGIN FOR DEVELOPMENT (Since .env might be missing)
-   if (email === 'admin@clawforce.hq' && password === 'admin123') {
-    // This is just to let the user see the dashboard during development
-    // if they don't have Firebase keys set up yet.
-    console.warn('Using dev mock login');
-    navigate('/');
-   }
+    setError('Authorization failed. Please verify your personnel credentials.');
+    console.error(err);
   } finally {
-   setLoading(false);
+    setLoading(false);
   }
  }
 
