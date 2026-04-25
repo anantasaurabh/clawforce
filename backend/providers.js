@@ -106,7 +106,7 @@ export const PROVIDERS = {
           linkedin_social_urn: memberId,
           LINKEDIN_PAGE_URN: JSON.stringify(organizations),
           LINKEDIN_PERSONAL_INFO: JSON.stringify(personalInfo),
-          linkedin_personal_urn: JSON.stringify(personalInfo)
+          linkedin_social_personal_urn: JSON.stringify(personalInfo)
         };
       } catch (err) {
         console.error('[LinkedIn PostAuth] Overall fetch failed:', err.response?.data || err.message);

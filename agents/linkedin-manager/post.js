@@ -18,10 +18,10 @@ try {
 
     // 2. Credential Validation & Selection (With fallback to process.env)
     const getEnv = (key) => env[key] || process.env[key];
-    
+
     let token = null;
     let tokenKey = "NONE";
-    
+
     const findToken = (keys) => {
         for (const k of keys) {
             const val = getEnv(k);
@@ -49,14 +49,19 @@ try {
     };
 
     if (target === 'personal') {
-        token = findToken(['LINKEDIN_PERSONAL_TOKEN', 'linkedin_personal_token', 'LINKEDIN_SOCIAL_TOKEN']);
-        const rawUrn = getEnv('LINKEDIN_PERSONAL_URN') || getEnv('linkedin_personal_urn') || getEnv('LINKEDIN_SOCIAL_URN');
+        token = findToken(['LINKEDIN_SOCIAL_TOKEN', 'linkedin_social_token', 'LINKEDIN_PERSONAL_TOKEN', 'linkedin_personal_token']);
+        // Priority: Use the URN that matches our chosen token provider to avoid mismatch
+        const personalUrnKeys = (tokenKey.includes('SOCIAL')) 
+            ? ['linkedin_social_personal_urn', 'LINKEDIN_SOCIAL_URN', 'LINKEDIN_PERSONAL_URN'] 
+            : ['LINKEDIN_PERSONAL_URN', 'linkedin_personal_urn', 'LINKEDIN_SOCIAL_URN'];
+
+        const rawUrn = findToken(personalUrnKeys);
         urn = resolveUrn(rawUrn);
-        urnKey = rawUrn ? "LINKEDIN_PERSONAL_URN" : "NONE";
+        urnKey = rawUrn ? "LINKEDIN_URN_RESOLVED" : "NONE";
     } else {
         // Community/Organization Target
         token = findToken(['LINKEDIN_COMMUNITY_TOKEN', 'LINKEDIN_SOCIAL_TOKEN', 'linkedin_social_token']);
-        
+
         // Check if explicit community URN is valid (not a placeholder)
         const explicitUrn = getEnv('LINKEDIN_COMMUNITY_URN');
         const isExplicitValid = explicitUrn && !explicitUrn.includes('your_');
@@ -98,15 +103,15 @@ try {
     // Masked token for logging
     const maskedToken = typeof token === 'string' ? (token.substring(0, 5) + "..." + token.substring(token.length - 5)) : "N/A";
     const fullUrn = target === 'personal' ? `urn:li:person:${urn}` : `urn:li:organization:${urn}`;
-    
+
     console.log(JSON.stringify({
         type: "log",
         content: `Initiating post to ${target} URN: ${fullUrn} (via ${urnKey}). Using token from ${tokenKey} (${maskedToken})`
     }));
 
     // 3. Post to LinkedIn using native https (no dependencies needed)
-    const authorUrn = urn.includes(':') ? urn : (target === 'personal' ? `urn:li:person:${urn}` : `urn:li:organization:${urn}`);
-    
+    const authorUrn = urn.includes(':') ? urn.replace('urn:li:person:', 'urn:li:member:') : (target === 'personal' ? `urn:li:member:${urn}` : `urn:li:organization:${urn}`);
+
     const postData = JSON.stringify({
         author: authorUrn,
         lifecycleState: "PUBLISHED",
@@ -143,7 +148,7 @@ try {
                         // Construct the public URL from the URN
                         link = `https://www.linkedin.com/feed/update/${response.id}`;
                     }
-                } catch (e) {}
+                } catch (e) { }
 
                 console.log(JSON.stringify({
                     status: "success",
