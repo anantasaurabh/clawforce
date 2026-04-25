@@ -49,7 +49,7 @@ export default function OAuthBridge() {
     }
 
     try {
-      const backendUrl = 'https://backend-clawforce.altovation.in';
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://dev-backend-clawforce.altovation.in';
       const redirectUri = encodeURIComponent(`${backendUrl}/auth/${provider}/callback`);
       const state = btoa(JSON.stringify({ userId: currentUser.uid, agentId }));
 

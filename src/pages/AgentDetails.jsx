@@ -31,7 +31,9 @@ import {
   Copy,
   Check,
   ChevronDown,
+  User,
   UserCog,
+  UserRoundCog,
   RefreshCw,
   Eraser
 } from 'lucide-react';
@@ -75,17 +77,17 @@ export default function AgentDetails() {
   const hasSchema = agent?.configSchema && agent.configSchema.length > 0;
   // For global only mode, an agent is considered configured if all its schema fields exist in either authorizations or sharedParams
   const isConfigured = !hasSchema || agent.configSchema.every(field => {
-     const pool = { ...sharedParams };
-     Object.values(userAuthorizations).forEach(auth => {
-        if (auth.credentials) {
-           Object.entries(auth.credentials).forEach(([k, v]) => {
-              pool[k] = v;
-              pool[k.toLowerCase()] = v;
-              pool[k.toUpperCase()] = v;
-           });
-        }
-     });
-     return !!(pool[field.key] || pool[field.key.toLowerCase()] || pool[field.key.toUpperCase()]);
+    const pool = { ...sharedParams };
+    Object.values(userAuthorizations).forEach(auth => {
+      if (auth.credentials) {
+        Object.entries(auth.credentials).forEach(([k, v]) => {
+          pool[k] = v;
+          pool[k.toLowerCase()] = v;
+          pool[k.toUpperCase()] = v;
+        });
+      }
+    });
+    return !!(pool[field.key] || pool[field.key.toLowerCase()] || pool[field.key.toUpperCase()]);
   });
 
   // Task Creation State
@@ -163,7 +165,7 @@ export default function AgentDetails() {
 
         // Initialize/Fetch Global Secret Token for Handshakes
         await configService.initializeGlobalReviewToken(currentUser.uid);
-        
+
         // Re-sync after token initialization if it was missing
         const finalUser = await configService.getUserConfig(currentUser.uid);
         setUserConfig(finalUser);
@@ -184,7 +186,7 @@ export default function AgentDetails() {
 
   useEffect(() => {
     if (!id || !currentUser) return;
-    
+
     function handleClickOutside(event) {
       if (humanControlsRef.current && !humanControlsRef.current.contains(event.target)) {
         setShowHumanControls(false);
@@ -223,7 +225,7 @@ export default function AgentDetails() {
 
     const authsPath = getUserAuthsPath(currentUser.uid);
     const authsRef = collection(db, authsPath);
-    
+
     const unsubscribe = onSnapshot(authsRef, (snapshot) => {
       const authsMap = {};
       snapshot.forEach(doc => {
@@ -450,12 +452,12 @@ export default function AgentDetails() {
 
   const handleCopyLogs = () => {
     if (!realTimeLogs.length) return;
-    
+
     const logText = realTimeLogs.map(log => {
       const timestamp = log.timestamp?.toDate ? `[${log.timestamp.toDate().toLocaleTimeString([], { hour12: false })}] ` : '';
       return `${timestamp}${log.content}`;
     }).join('\n');
-    
+
     navigator.clipboard.writeText(logText).then(() => {
       setCopying(true);
       setTimeout(() => setCopying(false), 2000);
@@ -468,7 +470,7 @@ export default function AgentDetails() {
 
   const handleDeleteHistory = async () => {
     if (!window.confirm('Are you sure you want to delete all completed/failed tasks for this agent?')) return;
-    
+
     try {
       const historyToDelete = tasks.filter(t => ['completed', 'failed', 'cancelled'].includes(t.status));
       await Promise.all(historyToDelete.map(t => taskService.deleteTask(t.id)));
@@ -578,21 +580,21 @@ export default function AgentDetails() {
                 <button
                   onClick={() => setShowHumanControls(!showHumanControls)}
                   className={cn(
-                    "w-full md:w-auto px-10 py-4 font-black text-xs uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg",
-                    showHumanControls ? "bg-slate-800 text-white" : "bg-slate-900 text-white shadow-slate-900/20 hover:bg-slate-800"
+                    "w-full text-xs uppercase text-black/50 hover:text-black/90 transition-all flex items-center justify-center gap-2 font-bold",
+                    showHumanControls ? "text-black/90" : "text-black/50"
                   )}
                 >
-                  <UserCog size={18} />
+                  <UserRoundCog size={18} />
                   Human Controls
                   <ChevronDown size={16} className={cn("transition-transform duration-300", showHumanControls ? "rotate-180" : "")} />
                 </button>
 
                 {showHumanControls && (
-                  <div className="absolute top-full left-0 mt-3 w-80 bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 py-6 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
-                    <div className="px-10 py-2 mb-2">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Manual Interventions</p>
+                  <div className="absolute top-full left-0 mt-3 w-80 bg-white rounded-8px shadow-2xl border border-slate-100 py-2 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
+                    <div className="px-10 py-2 mb-0">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0">Manual Interventions</p>
                     </div>
-                    
+
                     <button
                       onClick={() => {
                         isConfigured ? setShowTaskModal(true) : setShowDeployModal(true);
@@ -600,18 +602,18 @@ export default function AgentDetails() {
                       }}
                       className="w-full px-10 py-4 text-left hover:bg-slate-50 transition-all flex items-center gap-4 group"
                     >
-                      <div className="w-10 h-10 rounded-2xl bg-slate-900 text-white flex items-center justify-center shrink-0 shadow-lg shadow-slate-900/10 group-hover:scale-110 transition-transform">
+                      <div className="w-10 h-10 rounded-2xl bg-slate-900 text-white flex items-center justify-center shrink-0 shadow-lg shadow-slate-900/10 transition-transform">
                         <Plus size={18} />
                       </div>
                       <div className="flex flex-col">
                         <span className="text-xs font-black uppercase tracking-widest text-slate-900">
                           {isConfigured ? 'Create Task' : 'Configure Agent'}
                         </span>
-                        <span className="text-[10px] text-slate-500 font-medium">Initialize operational cycle</span>
+                        <span className="text-[10px] text-slate-500 font-medium">Create and assign task to this agent</span>
                       </div>
                     </button>
 
-                    <button
+                    {/* <button
                       onClick={() => {
                         handleRefreshProtocol();
                         setShowHumanControls(false);
@@ -641,14 +643,15 @@ export default function AgentDetails() {
                         <span className="text-xs font-black uppercase tracking-widest text-slate-900">Clear History</span>
                         <span className="text-[10px] text-slate-500 font-medium">Prune completed task logs</span>
                       </div>
-                    </button>
+                    </button> */}
 
                     {isConfigured && agent.customActions?.length > 0 && (
                       <>
-                        <div className="h-px bg-slate-50 my-4 mx-10" />
-                        <div className="px-10 py-2 mb-2">
+                        <hr className="bg-black/10 my-0 text-black/10" />
+
+                        {/* <div className="px-10 py-2 mb-2">
                           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">External Protocols</p>
-                        </div>
+                        </div> */}
                         {agent.customActions.map((action, idx) => {
                           const processedUrl = action.url
                             .replace('{{userId}}', currentUser.uid)
@@ -664,7 +667,7 @@ export default function AgentDetails() {
                               onClick={() => setShowHumanControls(false)}
                               className="w-full px-10 py-4 text-left hover:bg-slate-50 transition-all flex items-center gap-4 group"
                             >
-                              <div className="w-10 h-10 rounded-2xl bg-brand-primary/10 text-brand-primary flex items-center justify-center shrink-0 group-hover:bg-brand-primary group-hover:text-white transition-all group-hover:scale-110">
+                              <div className="w-10 h-10 rounded-2xl bg-brand-primary/10 text-brand-primary flex items-center justify-center shrink-0 group-hover:bg-brand-primary group-hover:text-white transition-all">
                                 <ExternalLink size={18} />
                               </div>
                               <div className="flex flex-col">
@@ -864,7 +867,7 @@ export default function AgentDetails() {
                       const provider = OAUTH_PROVIDERS.find(p => p.id === authId);
                       const authData = userAuthorizations[authId];
                       const isAuthorized = !!authData;
-                      
+
                       return (
                         <div key={authId} className="space-y-2">
                           <div className="flex items-center justify-between p-5 bg-white border border-slate-100 rounded-2xl shadow-sm group hover:border-emerald-100 transition-all">
@@ -880,13 +883,13 @@ export default function AgentDetails() {
                                   {provider?.label || authId}
                                 </p>
                                 <p className="text-[10px] font-medium text-slate-500">
-                                  {isAuthorized 
+                                  {isAuthorized
                                     ? `Authorized: ${authData.updatedAt?.toDate ? authData.updatedAt.toDate().toLocaleDateString() : 'Active'}`
                                     : 'Handshake Required'}
                                 </p>
                               </div>
                             </div>
-                            
+
                             {isAuthorized ? (
                               <div className="flex items-center gap-3">
                                 <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-[10px] font-black uppercase tracking-widest border border-emerald-100">
@@ -927,13 +930,14 @@ export default function AgentDetails() {
                       <Terminal size={18} />
                       <h4 className="font-black uppercase tracking-widest text-xs font-federo">Operational Instructions</h4>
                     </div>
-                    <div 
+                    <div
                       className="text-slate-600 text-sm leading-relaxed instruction-content"
                       dangerouslySetInnerHTML={{ __html: agent.instructions }}
                     />
                   </div>
 
-                  <style dangerouslySetInnerHTML={{ __html: `
+                  <style dangerouslySetInnerHTML={{
+                    __html: `
                     .instruction-content ul {
                       list-style-type: disc;
                       padding-left: 1.5rem;
@@ -970,12 +974,12 @@ export default function AgentDetails() {
                         }
                       });
 
-                      const displayValue = globalPool[field.key] || 
-                                          globalPool[field.key.toLowerCase()] || 
-                                          globalPool[field.key.toUpperCase()] || '';
-                      
+                      const displayValue = globalPool[field.key] ||
+                        globalPool[field.key.toLowerCase()] ||
+                        globalPool[field.key.toUpperCase()] || '';
+
                       const isAuthShared = !sharedParams[field.key] && !!displayValue;
-                      
+
                       return (
                         <div key={field.key} className="space-y-3">
                           <label className="text-[11px] font-bold uppercase tracking-widest text-slate-400 flex items-center justify-between group/label">
@@ -1407,13 +1411,13 @@ export default function AgentDetails() {
               )}>
                 {authResult.status === 'success' ? <CheckCircle2 size={40} /> : <AlertCircle size={40} />}
               </div>
-              
+
               <div className="space-y-2">
                 <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">
                   {authResult.status === 'success' ? 'Authorization Success' : 'Authorization Failed'}
                 </h3>
                 <p className="text-slate-500 text-sm font-medium leading-relaxed">
-                  {authResult.status === 'success' 
+                  {authResult.status === 'success'
                     ? 'Your LinkedIn credentials have been securely provisioned to this agent.'
                     : authResult.message || 'We could not complete the authorization handshake.'}
                 </p>
@@ -1423,8 +1427,8 @@ export default function AgentDetails() {
                 onClick={() => setAuthResult(null)}
                 className={cn(
                   "w-full py-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-lg",
-                  authResult.status === 'success' 
-                    ? "bg-slate-900 text-white hover:bg-slate-800 shadow-slate-900/20" 
+                  authResult.status === 'success'
+                    ? "bg-slate-900 text-white hover:bg-slate-800 shadow-slate-900/20"
                     : "bg-red-600 text-white hover:bg-red-700 shadow-red-600/20"
                 )}
               >

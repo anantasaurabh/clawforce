@@ -26,8 +26,8 @@ dist-ssr
 *service-account*
 runner/node_modules
 runner/.env
-runner/service-account.json
-backend/service-account.json
-landing-page/service-account.json
+backend/service-account*
+runner/service-account*
+landing-page/service-account*
 vite.config.js
 scratch/

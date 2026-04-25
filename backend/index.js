@@ -67,8 +67,7 @@ app.get('/auth/:provider/callback', async (req, res) => {
     }
 
     // 2. Exchange Code for Access Token
-    // Dynamic redirect URI construction to match the frontend EXACTLY
-    const backendBase = process.env.BACKEND_URL || 'https://backend-clawforce.altovation.in';
+    const backendBase = process.env.BACKEND_URL || 'https://dev-backend-clawforce.altovation.in';
     const redirect_uri = `${backendBase}/auth/${provider}/callback`;
 
     const tokenResponse = await axios.post(providerConfig.tokenUrl, null, {
