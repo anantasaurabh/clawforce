@@ -4,16 +4,18 @@
  */
 export const PROVIDERS = {
   linkedin_personal: {
+    authUrl: 'https://www.linkedin.com/oauth/v2/authorization',
     tokenUrl: 'https://www.linkedin.com/oauth/v2/accessToken',
+    scopes: 'openid profile email',
     clientIdEnv: 'LINKEDIN_PERSONAL_CLIENT_ID',
     clientSecretEnv: 'LINKEDIN_PERSONAL_CLIENT_SECRET',
     fieldMap: (data) => ({
       linkedin_personal_token: data.access_token,
-      linkedin_personal_expires_at: Date.now() + (data.expires_in * 1000)
+      linkedin_personal_expires_at: Date.now() + (data.expires_in * 1000),
+      token_expires_at: Date.now() + (data.expires_in * 1000)
     }),
     postAuthFetch: async (accessToken, axios) => {
       const headers = { Authorization: `Bearer ${accessToken}` };
-      // For personal (OpenID Connect), /userinfo is the correct endpoint for name/pic
       const url = 'https://api.linkedin.com/v2/userinfo';
       const res = await axios.get(url, { headers });
       const data = res.data;
@@ -31,12 +33,15 @@ export const PROVIDERS = {
     }
   },
   linkedin_social: {
+    authUrl: 'https://www.linkedin.com/oauth/v2/authorization',
     tokenUrl: 'https://www.linkedin.com/oauth/v2/accessToken',
+    scopes: 'w_member_social r_basicprofile r_organization_social rw_organization_admin w_organization_social',
     clientIdEnv: 'LINKEDIN_SOCIAL_CLIENT_ID',
     clientSecretEnv: 'LINKEDIN_SOCIAL_CLIENT_SECRET',
     fieldMap: (data) => ({
       linkedin_social_token: data.access_token,
-      linkedin_social_expires_at: Date.now() + (data.expires_in * 1000)
+      linkedin_social_expires_at: Date.now() + (data.expires_in * 1000),
+      token_expires_at: Date.now() + (data.expires_in * 1000)
     }),
     postAuthFetch: async (accessToken, axios) => {
       const headers = {
@@ -44,7 +49,6 @@ export const PROVIDERS = {
         'X-Restli-Protocol-Version': '2.0.0'
       };
 
-      // 1. Fetch Member ID & Personal Profile Info
       const meRes = await axios.get('https://api.linkedin.com/v2/me?projection=(id,localizedFirstName,localizedLastName,profilePicture(displayImage~:playableStreams))', { headers });
       const meData = meRes.data;
       const memberId = meData.id;
@@ -67,13 +71,10 @@ export const PROVIDERS = {
       const personalInfo = [{ name: personalName, urn: personalUrn, pic: personalPic }];
 
       try {
-        // 2. Fetch Managed Organizations (Administrators) - Get URNs first
         const orgsAclUrl = 'https://api.linkedin.com/v2/organizationalEntityAcls?q=roleAssignee&role=ADMINISTRATOR&state=APPROVED';
         const orgsAclRes = await axios.get(orgsAclUrl, { headers });
-        
         const urns = (orgsAclRes.data.elements || []).map(el => el.organizationalTarget);
         
-        // 3. Fetch details individually but in parallel
         const organizations = await Promise.all(urns.map(async (urn) => {
           try {
             const isBrand = urn.includes('organizationBrand');
@@ -120,23 +121,28 @@ export const PROVIDERS = {
     }
   },
   google: {
+    authUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
     tokenUrl: 'https://oauth2.googleapis.com/token',
+    scopes: 'https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email',
     clientIdEnv: 'GOOGLE_CLIENT_ID',
     clientSecretEnv: 'GOOGLE_CLIENT_SECRET',
     fieldMap: (data) => ({
       google_access_token: data.access_token,
       google_refresh_token: data.refresh_token,
-      google_expires_at: Date.now() + (data.expires_in * 1000)
+      google_expires_at: Date.now() + (data.expires_in * 1000),
+      token_expires_at: Date.now() + (data.expires_in * 1000)
     })
   },
   facebook: {
+    authUrl: 'https://www.facebook.com/v19.0/dialog/oauth',
     tokenUrl: 'https://graph.facebook.com/v19.0/oauth/access_token',
+    scopes: 'public_profile,email,pages_manage_posts,pages_read_engagement',
     clientIdEnv: 'FACEBOOK_CLIENT_ID',
     clientSecretEnv: 'FACEBOOK_CLIENT_SECRET',
     fieldMap: (data) => ({
       facebook_access_token: data.access_token,
-      facebook_expires_at: Date.now() + (data.expires_in * 1000)
+      facebook_expires_at: Date.now() + (data.expires_in * 1000),
+      token_expires_at: Date.now() + (data.expires_in * 1000)
     })
-  },
-  // Add Twitter, Mailchimp, etc. here following the same pattern
+  }
 };

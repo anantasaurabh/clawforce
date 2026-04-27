@@ -14,7 +14,7 @@ import {
   deleteDoc
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import { COLLECTIONS, getUserConfigPath } from '../constants/dbPaths';
+import { COLLECTIONS, getUserConfigPath, getUserAuthsPath } from '../constants/dbPaths';
 
 /**
  * User Services
@@ -127,6 +127,58 @@ export const catalogService = {
   async deletePackage(id) {
     const ref = doc(collection(db, COLLECTIONS.PACKAGES), id);
     await deleteDoc(ref);
+  },
+
+  async getAuthGroups() {
+    const groupsRef = collection(db, COLLECTIONS.AUTH_GROUPS);
+    const snap = await getDocs(groupsRef);
+    return snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a, b) => (a.order || 0) - (b.order || 0));
+  },
+
+  async createAuthGroup(id, data) {
+    const ref = doc(collection(db, COLLECTIONS.AUTH_GROUPS), id);
+    await setDoc(ref, { ...data, createdAt: serverTimestamp() });
+  },
+
+  async updateAuthGroup(id, data) {
+    const ref = doc(collection(db, COLLECTIONS.AUTH_GROUPS), id);
+    await setDoc(ref, { ...data, updatedAt: serverTimestamp() }, { merge: true });
+  },
+
+  async deleteAuthGroup(id) {
+    const ref = doc(collection(db, COLLECTIONS.AUTH_GROUPS), id);
+    await deleteDoc(ref);
+  },
+
+  async getAuthApps() {
+    const appsRef = collection(db, COLLECTIONS.AUTH_APPS);
+    const snap = await getDocs(appsRef);
+    return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  },
+
+  async createAuthApp(id, data) {
+    const ref = doc(collection(db, COLLECTIONS.AUTH_APPS), id);
+    await setDoc(ref, { ...data, createdAt: serverTimestamp() });
+  },
+
+  async updateAuthApp(id, data) {
+    const ref = doc(collection(db, COLLECTIONS.AUTH_APPS), id);
+    await setDoc(ref, { ...data, updatedAt: serverTimestamp() }, { merge: true });
+  },
+
+  async deleteAuthApp(id) {
+    const ref = doc(collection(db, COLLECTIONS.AUTH_APPS), id);
+    await deleteDoc(ref);
+  },
+
+  async getUserAuthorizations(userId) {
+    const authRef = collection(db, getUserAuthsPath(userId));
+    const snap = await getDocs(authRef);
+    const auths = {};
+    snap.docs.forEach(doc => {
+      auths[doc.id] = doc.data();
+    });
+    return auths;
   }
 };
 

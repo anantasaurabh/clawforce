@@ -27,6 +27,39 @@ admin.initializeApp({
 const db = admin.firestore();
 
 /**
+ * Generic OAuth Initialization Endpoint
+ * Redirects user to the provider's consent screen.
+ */
+app.get('/auth/:provider', (req, res) => {
+  const { provider } = req.params;
+  const { state } = req.query;
+
+  const providerConfig = PROVIDERS[provider];
+  if (!providerConfig) {
+    return res.status(404).send(`Provider ${provider} not supported`);
+  }
+
+  const backendBase = process.env.BACKEND_URL || 'https://dev-backend-clawforce.altovation.in';
+  const redirect_uri = `${backendBase}/auth/${provider}/callback`;
+  const clientId = process.env[providerConfig.clientIdEnv];
+
+  if (!clientId) {
+    return res.status(500).send(`Server is missing client ID for ${provider}`);
+  }
+
+  const authUrl = new URL(providerConfig.authUrl);
+  authUrl.searchParams.append('response_type', 'code');
+  authUrl.searchParams.append('client_id', clientId);
+  authUrl.searchParams.append('redirect_uri', redirect_uri);
+  authUrl.searchParams.append('state', state || '');
+  if (providerConfig.scopes) {
+    authUrl.searchParams.append('scope', providerConfig.scopes);
+  }
+
+  res.redirect(authUrl.toString());
+});
+
+/**
  * Generic OAuth Callback Handler
  * Supports any provider defined in providers.js
  */
@@ -34,8 +67,8 @@ app.get('/auth/:provider/callback', async (req, res) => {
   const { provider } = req.params;
   const { code, state, error, error_description } = req.query;
 
-  const providerConfig = PROVIDERS[provider];
-  
+  const localProviderLogic = PROVIDERS[provider] || {};
+
   // Helper to decode state safely
   const getContext = (stateStr) => {
     try {
@@ -46,15 +79,13 @@ app.get('/auth/:provider/callback', async (req, res) => {
   };
 
   const { userId, agentId } = getContext(state);
-  const redirectBase = agentId ? `${process.env.HQ_FRONTEND_URL}/agent/${agentId}` : `${process.env.HQ_FRONTEND_URL}/taskforce`;
+  const redirectBase = (agentId && agentId !== 'settings') 
+    ? `${process.env.HQ_FRONTEND_URL}/agent/${agentId}` 
+    : `${process.env.HQ_FRONTEND_URL}/settings`;
 
   if (error) {
     console.error(`[${provider}] Auth Error:`, error, error_description);
     return res.redirect(`${redirectBase}?auth_status=error&message=${encodeURIComponent(error_description)}`);
-  }
-
-  if (!providerConfig) {
-    return res.status(404).send(`Provider ${provider} not supported`);
   }
 
   if (!code || !state) {
@@ -66,16 +97,27 @@ app.get('/auth/:provider/callback', async (req, res) => {
       throw new Error('Invalid state parameters');
     }
 
+    if (!localProviderLogic.tokenUrl) {
+      return res.status(404).send(`Provider ${provider} not supported`);
+    }
+
+    const clientId = process.env[localProviderLogic.clientIdEnv];
+    const clientSecret = process.env[localProviderLogic.clientSecretEnv];
+
+    if (!clientId || !clientSecret) {
+      throw new Error(`Server is missing credentials for ${provider}`);
+    }
+
     // 2. Exchange Code for Access Token
     const backendBase = process.env.BACKEND_URL || 'https://dev-backend-clawforce.altovation.in';
     const redirect_uri = `${backendBase}/auth/${provider}/callback`;
 
-    const tokenResponse = await axios.post(providerConfig.tokenUrl, null, {
+    const tokenResponse = await axios.post(localProviderLogic.tokenUrl, null, {
       params: {
         grant_type: 'authorization_code',
         code,
-        client_id: process.env[providerConfig.clientIdEnv],
-        client_secret: process.env[providerConfig.clientSecretEnv],
+        client_id: clientId,
+        client_secret: clientSecret,
         redirect_uri,
       },
       headers: {
@@ -84,13 +126,19 @@ app.get('/auth/:provider/callback', async (req, res) => {
     });
 
     // 3. Update User's Global Authorizations in Firestore
-    let credentials = providerConfig.fieldMap(tokenResponse.data);
+    let credentials = localProviderLogic.fieldMap 
+      ? localProviderLogic.fieldMap(tokenResponse.data)
+      : { 
+          access_token: tokenResponse.data.access_token, 
+          [`${provider}_expires_at`]: Date.now() + (tokenResponse.data.expires_in * 1000),
+          token_expires_at: Date.now() + (tokenResponse.data.expires_in * 1000)
+        };
     
     // Optional additional fetch (e.g. for LinkedIn URN)
-    if (providerConfig.postAuthFetch) {
+    if (localProviderLogic.postAuthFetch) {
       try {
         console.log(`[OAuth] Executing postAuthFetch for ${provider}`);
-        const extraData = await providerConfig.postAuthFetch(tokenResponse.data.access_token, axios);
+        const extraData = await localProviderLogic.postAuthFetch(tokenResponse.data.access_token, axios);
         credentials = { ...credentials, ...extraData };
       } catch (postErr) {
         console.error(`[OAuth] postAuthFetch failed for ${provider}:`, postErr.message);
@@ -112,13 +160,13 @@ app.get('/auth/:provider/callback', async (req, res) => {
 
     console.log(`[OAuth] Successfully authorized ${provider} for user ${userId}, agent ${agentId}`);
 
-    // 4. Redirect user back to Agent Details page in HQ
-    res.redirect(`${redirectBase}?auth_status=success`);
+    // 4. Redirect user back to HQ
+    res.redirect(`${redirectBase}?auth_status=success&provider=${provider}`);
 
   } catch (err) {
     console.error(`[OAuth] Exchange Failure:`, err.response?.data || err.message);
     const errorMsg = err.response?.data?.error_description || err.message || 'Token exchange failed';
-    res.redirect(`${process.env.HQ_FRONTEND_URL}/taskforce?auth_status=error&message=${encodeURIComponent(errorMsg)}`);
+    res.redirect(`${redirectBase}?auth_status=error&message=${encodeURIComponent(errorMsg)}`);
   }
 });
 

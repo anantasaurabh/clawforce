@@ -178,26 +178,81 @@ async function publishToLinkedIn(post, auths) {
       throw new Error(`Missing credentials for LinkedIn ${target} publication.`);
     }
 
+    // Native Media Upload Logic
+    let assetUrn = null;
+
+    if (post.mediaUrl) {
+      try {
+        console.log(`[Post ${post.id}] Attempting native media upload for: ${post.mediaUrl}`);
+        
+        // 1. Download Media
+        const mediaRes = await axios.get(post.mediaUrl, { responseType: 'arraybuffer' });
+        const contentType = mediaRes.headers['content-type'] || 'application/octet-stream';
+        
+        const isVideo = contentType.includes('video');
+        const isPdf = contentType.includes('pdf') || post.mediaUrl.toLowerCase().endsWith('.pdf');
+        
+        // 2. Register Upload
+        let recipe = "urn:li:digitalmediaRecipe:feedshare-image";
+        if (isVideo) recipe = "urn:li:digitalmediaRecipe:feedshare-video";
+        if (isPdf) recipe = "urn:li:digitalmediaRecipe:feedshare-document";
+
+        const registerRes = await axios.post('https://api.linkedin.com/v2/assets?action=registerUpload', {
+          registerUploadRequest: {
+            recipes: [recipe],
+            owner: authorUrn,
+            serviceRelationships: [{
+              relationshipType: "OWNER",
+              identifier: "urn:li:userGeneratedContent"
+            }]
+          }
+        }, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        const uploadUrl = registerRes.data.value.uploadMechanism["com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest"].uploadUrl;
+        assetUrn = registerRes.data.value.asset;
+
+        // 3. Upload Binary
+        await axios.put(uploadUrl, mediaRes.data, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': contentType
+          }
+        });
+
+        console.log(`[Post ${post.id}] Native upload successful: ${assetUrn} (${recipe})`);
+      } catch (uploadErr) {
+        console.error(`[Post ${post.id}] Native upload failed, falling back to text-only:`, uploadErr.response?.data || uploadErr.message);
+      }
+    }
+
+    // Use the modern /v2/posts API (supports Documents/PDFs natively)
     const postData = {
         author: authorUrn,
-        lifecycleState: "PUBLISHED",
-        specificContent: {
-            "com.linkedin.ugc.ShareContent": {
-                shareCommentary: { text: post.content },
-                shareMediaCategory: "NONE"
-            }
+        commentary: post.content,
+        visibility: "PUBLIC",
+        distribution: {
+            feedDistribution: "MAIN_FEED",
+            targetEntities: [],
+            thirdPartyDistributionChannels: []
         },
-        visibility: { "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC" }
+        lifecycleState: "PUBLISHED"
     };
 
-  // Support for media categories if mediaUrl is provided
-  if (post.mediaUrl) {
-    // Current simple implementation: append media URL to content if present
-    // Proper LinkedIn media upload requires a multi-step handshake
-    postData.specificContent["com.linkedin.ugc.ShareContent"].shareCommentary.text += `\n\n${post.mediaUrl}`;
-  }
+    if (assetUrn) {
+        postData.content = {
+            media: {
+                id: assetUrn,
+                title: isPdf ? (post.mediaTitle || "Shared Document") : undefined
+            }
+        };
+    }
 
-  const response = await axios.post('https://api.linkedin.com/v2/ugcPosts', postData, {
+  const response = await axios.post('https://api.linkedin.com/v2/posts', postData, {
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
@@ -206,7 +261,8 @@ async function publishToLinkedIn(post, auths) {
   });
 
   if (response.status === 201 || response.status === 200) {
-    const id = response.data.id;
+    // Posts API returns the ID in the x-restli-id header
+    const id = response.headers['x-restli-id'] || response.data.id;
     return {
       success: true,
       link: id ? `https://www.linkedin.com/feed/update/${id}` : null

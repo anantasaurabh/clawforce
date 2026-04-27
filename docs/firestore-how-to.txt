@@ -1,0 +1,5 @@
+1. create project
+2. Settings->service account->generate new key
+3. Add app->Web->update .env
+4. Create DB Firestore add/update rules from docs/firestore.rules
+5. Add Authentication Sign in method -> Email/Password

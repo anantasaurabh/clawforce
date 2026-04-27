@@ -44,10 +44,32 @@ import { catalogService, configService, taskService } from '../services/firestor
 import { useAuth } from '../contexts/AuthContext';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { OAUTH_PROVIDERS } from '../constants/oauthProviders';
+// removed OAUTH_PROVIDERS
 
 function cn(...inputs) {
   return twMerge(clsx(inputs));
+}
+
+function renderContentWithLinks(content) {
+  if (!content) return null;
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = content.split(urlRegex);
+  return parts.map((part, i) => {
+    if (part.match(urlRegex)) {
+      return (
+        <a 
+          key={i} 
+          href={part} 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="text-brand-primary hover:underline underline-offset-4 font-bold break-all"
+        >
+          {part}
+        </a>
+      );
+    }
+    return part;
+  });
 }
 
 export default function AgentDetails() {
@@ -67,6 +89,7 @@ export default function AgentDetails() {
   const [sortConfig, setSortConfig] = useState({ key: 'startTime', direction: 'desc' });
   const [authResult, setAuthResult] = useState(null);
   const [userAuthorizations, setUserAuthorizations] = useState({});
+  const [authApps, setAuthApps] = useState([]);
 
   // Deployment Modal State
   const [showDeployModal, setShowDeployModal] = useState(false);
@@ -76,7 +99,7 @@ export default function AgentDetails() {
 
   const hasSchema = agent?.configSchema && agent.configSchema.length > 0;
   // For global only mode, an agent is considered configured if all its schema fields exist in either authorizations or sharedParams
-  const isConfigured = !hasSchema || agent.configSchema.every(field => {
+  const isSchemaConfigured = !hasSchema || agent.configSchema.every(field => {
     const pool = { ...sharedParams };
     Object.values(userAuthorizations).forEach(auth => {
       if (auth.credentials) {
@@ -89,6 +112,17 @@ export default function AgentDetails() {
     });
     return !!(pool[field.key] || pool[field.key.toLowerCase()] || pool[field.key.toUpperCase()]);
   });
+
+  const missingAuths = (agent?.requiredAuths || []).filter(authId => {
+    const auth = userAuthorizations[authId];
+    if (!auth || !auth.credentials) return true;
+    const expiresAt = auth.credentials[`${authId}_expires_at`];
+    if (expiresAt && Date.now() > expiresAt) return true;
+    return false;
+  });
+
+  const isAuthConfigured = missingAuths.length === 0;
+  const isConfigured = isSchemaConfigured && isAuthConfigured;
 
   // Task Creation State
   const [showTaskModal, setShowTaskModal] = useState(false);
@@ -122,9 +156,10 @@ export default function AgentDetails() {
       setLoading(true);
 
       const agentRef = doc(collection(db, COLLECTIONS.AGENTS), id);
-      const [agentSnap, cats] = await Promise.all([
+      const [agentSnap, cats, apps] = await Promise.all([
         getDoc(agentRef),
-        catalogService.getCategories()
+        catalogService.getCategories(),
+        catalogService.getAuthApps()
       ]);
 
       const searchParams = new URLSearchParams(window.location.search);
@@ -147,6 +182,7 @@ export default function AgentDetails() {
       const agentData = { id: agentSnap.id, ...agentSnap.data() };
       setAgent(agentData);
       setCategories(cats);
+      setAuthApps(apps);
 
       // Get user config (Resilient)
       try {
@@ -159,7 +195,8 @@ export default function AgentDetails() {
 
         // Auto-redirect to config if not configured
         const hasSchema = agentData.configSchema && agentData.configSchema.length > 0;
-        if (hasSchema && !configData?.isConfigured) {
+        const hasAuths = agentData.requiredAuths && agentData.requiredAuths.length > 0;
+        if ((hasSchema || hasAuths) && !isConfigured) {
           setActiveTab('config');
         }
 
@@ -856,6 +893,20 @@ export default function AgentDetails() {
                 </div>
               </div>
 
+              {!isAuthConfigured && (
+                <div className="p-6 bg-red-50 rounded-2xl border border-red-100 flex items-start gap-6 animate-pulse">
+                  <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center text-red-600 shadow-sm shrink-0">
+                    <AlertCircle size={24} />
+                  </div>
+                  <div>
+                    <h4 className="font-black text-red-900 uppercase tracking-widest text-xs mb-1">Authorization Required</h4>
+                    <p className="text-red-700 text-xs font-medium leading-relaxed">
+                      This agent requires specific account authorizations to function correctly. Please connect the missing or expired accounts below.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {agent.requiredAuths && agent.requiredAuths.length > 0 && (
                 <div className="space-y-4">
                   <div className="flex items-center gap-2">
@@ -864,9 +915,15 @@ export default function AgentDetails() {
                   </div>
                   <div className="grid gap-4">
                     {agent.requiredAuths.map((authId) => {
-                      const provider = OAUTH_PROVIDERS.find(p => p.id === authId);
+                      const provider = authApps.find(p => p.id === authId);
                       const authData = userAuthorizations[authId];
-                      const isAuthorized = !!authData;
+                      const isConnected = !!authData;
+                      let isExpired = false;
+                      if (isConnected && authData.credentials) {
+                        const expiresAt = authData.credentials[`${authId}_expires_at`];
+                        if (expiresAt && Date.now() > expiresAt) isExpired = true;
+                      }
+                      const isAuthorized = isConnected && !isExpired;
 
                       return (
                         <div key={authId} className="space-y-2">
@@ -874,18 +931,18 @@ export default function AgentDetails() {
                             <div className="flex items-center gap-4">
                               <div className={cn(
                                 "w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
-                                isAuthorized ? "bg-emerald-50 text-emerald-600" : "bg-slate-50 text-slate-400 group-hover:bg-emerald-50"
+                                isAuthorized ? "bg-emerald-50 text-emerald-600" : (isExpired ? "bg-red-50 text-red-600" : "bg-slate-50 text-slate-400 group-hover:bg-emerald-50")
                               )}>
                                 {isAuthorized ? <ShieldCheck size={20} /> : <Link2 size={20} />}
                               </div>
                               <div>
                                 <p className="text-[11px] font-black text-slate-900 uppercase tracking-tight">
-                                  {provider?.label || authId}
+                                  {provider?.name || authId}
                                 </p>
-                                <p className="text-[10px] font-medium text-slate-500">
+                                <p className={cn("text-[10px] font-medium", isExpired ? "text-red-500" : "text-slate-500")}>
                                   {isAuthorized
                                     ? `Authorized: ${authData.updatedAt?.toDate ? authData.updatedAt.toDate().toLocaleDateString() : 'Active'}`
-                                    : 'Handshake Required'}
+                                    : (isExpired ? 'Authorization Expired' : 'Handshake Required')}
                                 </p>
                               </div>
                             </div>
@@ -897,7 +954,11 @@ export default function AgentDetails() {
                                   Active
                                 </div>
                                 <button
-                                  onClick={() => navigate(`/auth/${authId}?agentId=${id}`)}
+                                  onClick={() => {
+                                    const stateObj = { userId: currentUser.uid, agentId: id };
+                                    const stateStr = btoa(JSON.stringify(stateObj));
+                                    window.location.href = `${import.meta.env.VITE_BACKEND_URL}/auth/${authId}?state=${stateStr}`;
+                                  }}
                                   className="p-2 text-slate-400 hover:text-slate-900 border border-slate-100 rounded-lg transition-all"
                                   title="Re-authorize"
                                 >
@@ -906,7 +967,11 @@ export default function AgentDetails() {
                               </div>
                             ) : (
                               <button
-                                onClick={() => navigate(`/auth/${authId}?agentId=${id}`)}
+                                onClick={() => {
+                                  const stateObj = { userId: currentUser.uid, agentId: id };
+                                  const stateStr = btoa(JSON.stringify(stateObj));
+                                  window.location.href = `${import.meta.env.VITE_BACKEND_URL}/auth/${authId}?state=${stateStr}`;
+                                }}
                                 className="px-4 py-2 bg-slate-900 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/10"
                               >
                                 Authorize
@@ -1201,8 +1266,8 @@ export default function AgentDetails() {
 
               <div className="space-y-3 flex-1">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Task Description</span>
-                <p className="text-slate-500 text-xs font-medium leading-relaxed">
-                  {selectedTask.description || 'No detailed instructions provided for this task.'}
+                <p className="text-slate-500 text-xs font-medium leading-relaxed whitespace-pre-wrap">
+                  {selectedTask.description ? renderContentWithLinks(selectedTask.description) : 'No detailed instructions provided for this task.'}
                 </p>
               </div>
 
@@ -1315,8 +1380,8 @@ export default function AgentDetails() {
                                 ? "bg-slate-900 text-slate-200 border-slate-800 rounded-tr-none"
                                 : "bg-white text-slate-600 border-slate-100 rounded-tl-none"
                             )}>
-                              <p className="text-sm font-medium leading-relaxed">
-                                {comment.content}
+                              <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap">
+                                {renderContentWithLinks(comment.content)}
                               </p>
                             </div>
                           </div>

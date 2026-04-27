@@ -2,14 +2,49 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // Helper: Check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper: Check if the user is the Superadmin (by Email or Role)
+    function isAdmin() {
+      let userDoc = get(/databases/$(database)/documents/artifacts/clwhq-001/public/data/users/$(request.auth.uid));
+      return isAuthenticated() && 
+             (request.auth.token.email == "admin@clawforce.hq" || userDoc.data.role == 'admin');
+    }
+
+    // --- APPLICATION DATA (clwhq-001) ---
+    match /artifacts/clwhq-001/{allPaths=**} {
+      
+      // 1. Any logged-in personnel can READ everything
+      allow read: if isAuthenticated();
+
+      // 2. Only Admins can WRITE to shared data
+      allow write: if isAdmin();
+    }
+
+    // --- USER PRIVATE DATA ---
     
-    // --- EMERGENCY DEBUG: ALLOW ALL ---
-    // If this still gives "insufficient permissions", then either:
-    // 1. You are applying rules to the wrong project (check .env VITE_FIREBASE_PROJECT_ID)
-    // 2. The path in the database is completely different
-    match /{document=**} {
-      allow read, write: if true;
+    // 3. Users can always write to their own private folders
+    match /artifacts/clwhq-001/userConfigs/{userId}/{allPaths=**} {
+      allow write: if isAuthenticated() && request.auth.uid == userId;
     }
     
+    match /artifacts/clwhq-001/userAuthorizations/{userId}/{allPaths=**} {
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    match /artifacts/clwhq-001/public/data/users/{userId} {
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // 4. Operators can manage their own tasks/posts
+    match /artifacts/clwhq-001/public/data/{type}/{docId} {
+      allow write: if (type == 'tasks' || type == 'pending_posts') && 
+        isAuthenticated() && 
+        (isAdmin() || request.resource.data.ownerId == request.auth.uid || resource.data.ownerId == request.auth.uid);
+    }
   }
 }

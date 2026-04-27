@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, createUserWithEmailAndPassword, getAuth, updateProfile as updateAuthProfile, updatePassword as updateAuthPassword } from 'firebase/auth';
-import { collection, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, getDoc, setDoc, serverTimestamp, getFirestore } from 'firebase/firestore';
 import { auth, db, firebaseConfig } from '../firebase';
 import { COLLECTIONS } from '../constants/dbPaths';
 
@@ -18,19 +18,34 @@ export function AuthProvider({ children }) {
 
  async function fetchUserProfile(uid, email) {
   try {
-   const userRef = doc(collection(db, COLLECTIONS.USERS), uid);
+   const firestoreDb = db || getFirestore();
+   const userRef = doc(collection(firestoreDb, COLLECTIONS.USERS), uid);
    const snap = await getDoc(userRef);
    
    if (snap.exists()) {
     const data = snap.data();
-    setUserProfile(data);
-    return data;
+    let updatedData = { ...data };
+    
+    // Auto-upgrade existing profiles if they are in the admin list
+    const adminEmails = (import.meta.env.VITE_ADMIN_EMAIL || '').toLowerCase().split(',').map(e => e.trim());
+    const userEmail = (email || '').toLowerCase();
+    
+    if (adminEmails.includes(userEmail) && updatedData.role !== 'admin') {
+      updatedData.role = 'admin';
+      await setDoc(userRef, { role: 'admin' }, { merge: true });
+    }
+    
+    setUserProfile(updatedData);
+    return updatedData;
    } else {
     // Create a default profile for new users
+    const adminEmails = (import.meta.env.VITE_ADMIN_EMAIL || '').toLowerCase().split(',').map(e => e.trim());
+    const userEmail = (email || '').toLowerCase();
+    
     const defaultProfile = {
      displayName: email.split('@')[0],
      email: email,
-     role: email === import.meta.env.VITE_ADMIN_EMAIL ? 'admin' : 'operator',
+     role: adminEmails.includes(userEmail) ? 'admin' : 'operator',
      status: 'active',
      packageId: 'starter-pack',
      createdAt: serverTimestamp(),
@@ -72,6 +87,10 @@ export function AuthProvider({ children }) {
   return signOut(auth);
  }
 
+ function status() {
+  // Not used in original, keeping for structure if needed
+ }
+
  function resetPassword(email) {
   return sendPasswordResetEmail(auth, email);
  }
@@ -84,23 +103,19 @@ export function AuthProvider({ children }) {
   
   try {
    const result = await createUserWithEmailAndPassword(secondaryAuth, email, password);
-   // Wait a bit to ensure auth propagation if needed, 
-   // but usually the result is enough.
    return result.user;
   } finally {
-   // Cleanup the secondary app to prevent memory leaks and "App name already exists" errors
    await deleteApp(secondaryApp);
   }
  }
 
  async function updateProfileData(data) {
   if (!currentUser) return;
-  const userRef = doc(collection(db, COLLECTIONS.USERS), currentUser.uid);
+  const firestoreDb = db || getFirestore();
+  const userRef = doc(collection(firestoreDb, COLLECTIONS.USERS), currentUser.uid);
   await setDoc(userRef, data, { merge: true });
   setUserProfile(prev => ({ ...prev, ...data }));
   
-  // Also update auth profile if displayName or photoURL is provided
-  // NOTE: Auth profile has a 2048 char limit on photoURL.
   if (data.displayName || data.photoURL) {
    const authUpdate = {};
    if (data.displayName) authUpdate.displayName = data.displayName;
@@ -137,7 +152,7 @@ export function AuthProvider({ children }) {
  const value = {
   currentUser,
   userProfile,
-  isAdmin: userProfile?.role === 'admin',
+  isAdmin: userProfile?.role === 'admin' || (currentUser?.email && (import.meta.env.VITE_ADMIN_EMAIL || '').toLowerCase().split(',').map(e => e.trim()).includes(currentUser.email.toLowerCase())),
   isOperator: userProfile?.role === 'operator',
   login,
   mockLogin,

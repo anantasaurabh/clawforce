@@ -227,9 +227,9 @@ export default function DashboardLayout() {
         <Bell size={20} />
         <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 border-2 border-white rounded-full"></span>
        </button>
-       <button className="p-2.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-xl transition-all">
+       <Link to="/settings" className="p-2.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-xl transition-all block">
         <Settings size={20} />
-       </button>
+       </Link>
       </div>
        <div className="h-8 w-px bg-slate-100" />
        <button 

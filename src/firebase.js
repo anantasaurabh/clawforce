@@ -19,6 +19,8 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
 
+console.log('[DEBUG] Firebase initialized. db is:', db);
+
 let analytics = null;
 if (typeof window !== 'undefined' && import.meta.env.VITE_FIREBASE_MEASUREMENT_ID) {
   try {

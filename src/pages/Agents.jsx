@@ -29,7 +29,7 @@ import { useAuth } from '../contexts/AuthContext';
 import RichTextEditor from '../components/RichTextEditor';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { OAUTH_PROVIDERS } from '../constants/oauthProviders';
+// removed OAUTH_PROVIDERS
 
 function cn(...inputs) {
   return twMerge(clsx(inputs));
@@ -39,6 +39,7 @@ function cn(...inputs) {
 export default function Agents() {
   const [agents, setAgents] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [authApps, setAuthApps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingAgent, setEditingAgent] = useState(null);
@@ -54,12 +55,14 @@ export default function Agents() {
   async function fetchData() {
     try {
       setLoading(true);
-      const [agts, cats] = await Promise.all([
+      const [agts, cats, apps] = await Promise.all([
         catalogService.getAgents(),
-        catalogService.getCategories()
+        catalogService.getCategories(),
+        catalogService.getAuthApps()
       ]);
       setAgents(agts);
       setCategories(cats);
+      setAuthApps(apps);
     } catch (err) {
       console.error(err);
     } finally {
@@ -236,6 +239,7 @@ export default function Agents() {
         <AgentModal
           agent={editingAgent}
           categories={categories}
+          authApps={authApps}
           onClose={() => { setShowModal(false); setEditingAgent(null); }}
           onSuccess={() => {
             setShowModal(false);
@@ -248,7 +252,7 @@ export default function Agents() {
   );
 }
 
-function AgentModal({ agent, categories, onClose, onSuccess }) {
+function AgentModal({ agent, categories, authApps, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
   const isEdit = !!agent;
 
@@ -454,7 +458,9 @@ function AgentModal({ agent, categories, onClose, onSuccess }) {
                   <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Required Authorizations</span>
                 </div>
                 <div className="space-y-2">
-                  {OAUTH_PROVIDERS.map((provider) => (
+                  {authApps.length === 0 ? (
+                    <p className="text-xs text-slate-400 italic">No authorization apps defined by Superadmin.</p>
+                  ) : authApps.map((provider) => (
                     <label key={provider.id} className="flex items-center gap-3 p-3 rounded-xl border border-slate-50 bg-white hover:border-emerald-100 transition-all cursor-pointer group">
                       <input
                         type="checkbox"
@@ -470,7 +476,7 @@ function AgentModal({ agent, categories, onClose, onSuccess }) {
                         className="w-4 h-4 rounded border-slate-200 text-emerald-600 focus:ring-emerald-600/20"
                       />
                       <span className="text-[11px] font-bold text-slate-600 group-hover:text-slate-900 transition-colors uppercase tracking-tight">
-                        {provider.label}
+                        {provider.name}
                       </span>
                     </label>
                   ))}
