@@ -11,6 +11,7 @@ import {
  Settings, 
  HelpCircle, 
  LogOut,
+ User,
  Bell,
  Search,
  Plus,
@@ -51,6 +52,19 @@ export default function DashboardLayout() {
  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
  const [activeAgentName, setActiveAgentName] = useState('');
  const [showProfileModal, setShowProfileModal] = useState(false);
+ const [showProfileMenu, setShowProfileMenu] = useState(false);
+ const profileMenuRef = React.useRef(null);
+
+ // Close profile menu when clicking outside
+ useEffect(() => {
+  function handleClickOutside(event) {
+   if (profileMenuRef.current && !profileMenuRef.current.contains(event.target)) {
+    setShowProfileMenu(false);
+   }
+  }
+  document.addEventListener("mousedown", handleClickOutside);
+  return () => document.removeEventListener("mousedown", handleClickOutside);
+ }, [profileMenuRef]);
 
  // Fetch active agent name for breadcrumbs
  React.useEffect(() => {
@@ -167,13 +181,7 @@ export default function DashboardLayout() {
        {isSidebarOpen && <span>{item.label}</span>}
       </NavLink>
      ))}
-     <button
-      onClick={handleLogout}
-      className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors font-medium text-sm"
-     >
-      <LogOut size={20} />
-      {isSidebarOpen && <span>Sign Out</span>}
-     </button>
+
     </div>
    </aside>
 
@@ -232,22 +240,55 @@ export default function DashboardLayout() {
        </Link>
       </div>
        <div className="h-8 w-px bg-slate-100" />
-       <button 
-         onClick={() => setShowProfileModal(true)}
-         className="flex items-center gap-3 pl-2 group transition-all"
-       >
-        <div className="hidden md:flex flex-col items-end mr-1">
-         <span className="text-[11px] font-black text-slate-900 uppercase tracking-widest leading-none mb-0.5">
-           {userProfile?.displayName || "Operator"}
-         </span>
-         <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tight leading-none">
-           {userProfile?.role || "Member"}
-         </span>
-        </div>
-        <div className="w-10 h-10 rounded-full bg-slate-200 border-2 border-white overflow-hidden shadow-sm flex-shrink-0 group-hover:border-brand-primary transition-all">
-         <img src={userProfile?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser?.uid || "admin"}`} alt="avatar" />
-        </div>
-       </button>
+       <div className="relative" ref={profileMenuRef}>
+        <button 
+          onClick={() => setShowProfileMenu(!showProfileMenu)}
+          className="flex items-center gap-3 pl-2 group transition-all"
+        >
+         <div className="hidden md:flex flex-col items-end mr-1">
+          <span className="text-[11px] font-black text-slate-900 uppercase tracking-widest leading-none mb-0.5">
+            {userProfile?.displayName || "Operator"}
+          </span>
+          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tight leading-none">
+            {userProfile?.role || "Member"}
+          </span>
+         </div>
+         <div className="w-10 h-10 rounded-full bg-slate-200 border-2 border-white overflow-hidden shadow-sm flex-shrink-0 group-hover:border-brand-primary transition-all">
+          <img src={userProfile?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser?.uid || "admin"}`} alt="avatar" />
+         </div>
+        </button>
+
+        {showProfileMenu && (
+          <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-slate-100 py-2 z-50 animate-in fade-in zoom-in duration-200 origin-top-right">
+            <div className="px-4 py-2 border-b border-slate-50 mb-1 md:hidden">
+              <p className="text-xs font-bold text-slate-900 truncate">{userProfile?.displayName || "Operator"}</p>
+              <p className="text-[10px] text-slate-400 uppercase tracking-tight">{userProfile?.role || "Member"}</p>
+            </div>
+            <button
+              onClick={() => {
+                setShowProfileMenu(false);
+                setShowProfileModal(true);
+              }}
+              className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors font-medium"
+            >
+              <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-white transition-colors">
+                <User size={18} />
+              </div>
+              Edit profile
+            </button>
+            <div className="h-px bg-slate-100 my-1 mx-2" />
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors font-medium"
+            >
+              <div className="w-8 h-8 rounded-lg bg-red-50/50 flex items-center justify-center text-red-400">
+                <LogOut size={18} />
+              </div>
+              Sign Out
+            </button>
+          </div>
+        )}
+       </div>
 
        <ProfileModal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} />
      </div>

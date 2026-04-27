@@ -60,12 +60,7 @@ export const seedDatabase = async () => {
       category: 'marketing',
       tier: 'basic',
       icon: 'Linkedin',
-      configSchema: [
-        { key: 'li_at', label: 'LinkedIn li_at Cookie', type: 'password' },
-        { key: 'jsessionid', label: 'LinkedIn JSESSIONID', type: 'password' },
-        { key: 'company_id', label: 'Organization ID', type: 'text' },
-        { key: 'proxy_url', label: 'Proxy URL (Optional)', type: 'url', required: false }
-      ]
+      icon: 'Linkedin'
     },
     {
       id: 'python-coder',
@@ -74,11 +69,7 @@ export const seedDatabase = async () => {
       category: 'coding',
       tier: 'premium',
       icon: 'Code',
-      configSchema: [
-        { key: 'openai_key', label: 'OpenAI API Key', type: 'password' },
-        { key: 'model_name', label: 'Model Version (e.g. gpt-4o)', type: 'text', required: false },
-        { key: 'github_token', label: 'GitHub Personal Token', type: 'password' }
-      ]
+      icon: 'Code'
     },
     {
       id: 'research-pro',
@@ -87,9 +78,7 @@ export const seedDatabase = async () => {
       category: 'research',
       tier: 'premium',
       icon: 'Search',
-      configSchema: [
-        { key: 'serp_api_key', label: 'SerpAPI Key', type: 'password' }
-      ]
+      icon: 'Search'
     },
     {
       id: 'email-drafter',
@@ -98,11 +87,7 @@ export const seedDatabase = async () => {
       category: 'writing',
       tier: 'basic',
       icon: 'Mail',
-      configSchema: [
-        { key: 'openai_api_key', label: 'OpenAI API Key', type: 'password' },
-        { key: 'sender_name', label: 'Sender Name', type: 'text' },
-        { key: 'user_tone', label: 'Preferred Tone', type: 'text' }
-      ]
+      icon: 'Mail'
     },
     {
       id: 'security-auditor',
@@ -111,10 +96,7 @@ export const seedDatabase = async () => {
       category: 'security',
       tier: 'premium',
       icon: 'Shield',
-      configSchema: [
-        { key: 'shodan_key', label: 'Shodan API Key', type: 'password' },
-        { key: 'target_ip', label: 'Target IP Range', type: 'text' }
-      ]
+      icon: 'Shield'
     },
     {
       id: 'analytics-genius',
@@ -123,9 +105,7 @@ export const seedDatabase = async () => {
       category: 'analytics',
       tier: 'premium',
       icon: 'BarChart',
-      configSchema: [
-        { key: 'google_analytics_id', label: 'GA4 Property ID', type: 'text' }
-      ]
+      icon: 'BarChart'
     }
   ];
 
@@ -136,8 +116,7 @@ export const seedDatabase = async () => {
       description: agent.description,
       category: agent.category,
       tier: agent.tier,
-      icon: agent.icon,
-      configSchema: agent.configSchema
+      icon: agent.icon
     });
   });
 

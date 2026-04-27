@@ -69,7 +69,7 @@ export const catalogService = {
   async getAgents() {
     const agentsRef = collection(db, COLLECTIONS.AGENTS);
     const snap = await getDocs(agentsRef);
-    return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return snap.docs.map(doc => ({ ...doc.data(), id: doc.id }));
   },
 
   async getCategories() {

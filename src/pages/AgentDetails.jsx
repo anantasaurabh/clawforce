@@ -35,7 +35,13 @@ import {
   UserCog,
   UserRoundCog,
   RefreshCw,
-  Eraser
+  Eraser,
+  BarChart3,
+  Calendar,
+  TrendingUp,
+  Users,
+  MousePointer2,
+  PieChart
 } from 'lucide-react';
 import { collection, query, where, orderBy, getDocs, doc, getDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -82,7 +88,7 @@ export default function AgentDetails() {
   const [config, setConfig] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('history');
+  const [activeTab, setActiveTab] = useState('performance');
   const tabsRef = useRef(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -97,21 +103,7 @@ export default function AgentDetails() {
   const [userConfig, setUserConfig] = useState(null);
   const [isConfiguring, setIsConfiguring] = useState(false);
 
-  const hasSchema = agent?.configSchema && agent.configSchema.length > 0;
-  // For global only mode, an agent is considered configured if all its schema fields exist in either authorizations or sharedParams
-  const isSchemaConfigured = !hasSchema || agent.configSchema.every(field => {
-    const pool = { ...sharedParams };
-    Object.values(userAuthorizations).forEach(auth => {
-      if (auth.credentials) {
-        Object.entries(auth.credentials).forEach(([k, v]) => {
-          pool[k] = v;
-          pool[k.toLowerCase()] = v;
-          pool[k.toUpperCase()] = v;
-        });
-      }
-    });
-    return !!(pool[field.key] || pool[field.key.toLowerCase()] || pool[field.key.toUpperCase()]);
-  });
+
 
   const missingAuths = (agent?.requiredAuths || []).filter(authId => {
     const auth = userAuthorizations[authId];
@@ -122,7 +114,47 @@ export default function AgentDetails() {
   });
 
   const isAuthConfigured = missingAuths.length === 0;
-  const isConfigured = isSchemaConfigured && isAuthConfigured;
+  const isConfigured = isAuthConfigured;
+
+  // Performance Dashboard State
+  const [metrics, setMetrics] = useState(null);
+  const [loadingMetrics, setLoadingMetrics] = useState(false);
+  const [selectedProvider, setSelectedProvider] = useState('');
+  const [timeRange, setTimeRange] = useState('7d');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+
+  useEffect(() => {
+    if (agent?.requiredAuths?.length > 0 && !selectedProvider) {
+      setSelectedProvider(agent.requiredAuths[0]);
+    }
+  }, [agent, selectedProvider]);
+
+  useEffect(() => {
+    if (selectedProvider && activeTab === 'performance') {
+      if (timeRange !== 'custom' || (startDate && endDate)) {
+        fetchMetrics();
+      }
+    }
+  }, [selectedProvider, timeRange, activeTab, startDate, endDate]);
+
+  async function fetchMetrics() {
+    try {
+      setLoadingMetrics(true);
+      let url = `${import.meta.env.VITE_BACKEND_URL}/metrics/${selectedProvider}?timeRange=${timeRange}`;
+      if (timeRange === 'custom') {
+        url += `&startDate=${startDate}&endDate=${endDate}`;
+      }
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Failed to fetch metrics');
+      const data = await res.json();
+      setMetrics(data);
+    } catch (err) {
+      console.error('Metrics fetch error:', err);
+    } finally {
+      setLoadingMetrics(false);
+    }
+  }
 
   // Task Creation State
   const [showTaskModal, setShowTaskModal] = useState(false);
@@ -197,7 +229,7 @@ export default function AgentDetails() {
         const hasSchema = agentData.configSchema && agentData.configSchema.length > 0;
         const hasAuths = agentData.requiredAuths && agentData.requiredAuths.length > 0;
         if ((hasSchema || hasAuths) && !isConfigured) {
-          setActiveTab('config');
+          setActiveTab('history');
         }
 
         // Initialize/Fetch Global Secret Token for Handshakes
@@ -729,6 +761,15 @@ export default function AgentDetails() {
         <div className="border-b border-slate-50 px-10 pt-8 flex items-end justify-between gap-10">
           <div className="flex gap-10">
             <button
+              onClick={() => setActiveTab('performance')}
+              className={cn(
+                "pb-6 text-sm font-black uppercase tracking-widest transition-all border-b-2",
+                activeTab === 'performance' ? "text-slate-900 border-slate-900" : "text-slate-400 border-transparent hover:text-slate-600"
+              )}
+            >
+              Performance
+            </button>
+            <button
               onClick={() => setActiveTab('history')}
               className={cn(
                 "pb-6 text-sm font-black uppercase tracking-widest transition-all border-b-2",
@@ -737,56 +778,240 @@ export default function AgentDetails() {
             >
               Tasks
             </button>
-            <button
-              onClick={() => setActiveTab('config')}
-              className={cn(
-                "pb-6 text-sm font-black uppercase tracking-widest transition-all border-b-2",
-                activeTab === 'config' ? "text-slate-900 border-slate-900" : "text-slate-400 border-transparent hover:text-slate-600"
-              )}
-            >
-              System Parameters
-            </button>
           </div>
 
-          {activeTab === 'history' && (
-            <div className="flex flex-col md:flex-row items-center gap-2 pb-6">
-              <div className="relative group w-full max-w-sm">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-primary transition-colors" size={14} />
-                <input
-                  type="text"
-                  placeholder="Search tasks..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-full text-[11px] focus:outline-none focus:ring-4 focus:ring-brand-primary/5 focus:border-brand-primary/20 transition-all font-medium shadow-sm"
-                />
+          <div className="flex items-center gap-4 pb-6">
+            {activeTab === 'performance' && agent?.requiredAuths?.length > 0 && (
+              <div className="flex flex-col md:flex-row items-center gap-3 animate-in fade-in slide-in-from-right-4 duration-500">
+                <div className="relative group">
+                  <BarChart3 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-primary transition-colors" size={12} />
+                  <select
+                    value={selectedProvider}
+                    onChange={(e) => setSelectedProvider(e.target.value)}
+                    className="pl-8 pr-8 py-2 bg-slate-50 border border-slate-100 rounded-lg text-[10px] font-black uppercase tracking-widest text-slate-700 focus:outline-none focus:ring-4 focus:ring-brand-primary/5 focus:border-brand-primary/20 transition-all cursor-pointer appearance-none min-w-[180px]"
+                    style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.5rem center', backgroundSize: '0.75rem' }}
+                  >
+                    {agent.requiredAuths.map(id => {
+                      const p = authApps.find(app => app.id === id);
+                      return <option key={id} value={id}>{p?.name || id}</option>
+                    })}
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="relative group">
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-primary transition-colors" size={12} />
+                    <select
+                      value={timeRange}
+                      onChange={(e) => setTimeRange(e.target.value)}
+                      className="pl-8 pr-8 py-2 bg-slate-50 border border-slate-100 rounded-lg text-[10px] font-black uppercase tracking-widest text-slate-700 focus:outline-none focus:ring-4 focus:ring-brand-primary/5 focus:border-brand-primary/20 transition-all cursor-pointer appearance-none min-w-[140px]"
+                      style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.5rem center', backgroundSize: '0.75rem' }}
+                    >
+                      <option value="7d">Last 7 Days</option>
+                      <option value="30d">Last 30 Days</option>
+                      <option value="90d">Last 90 Days</option>
+                      <option value="custom">Custom Range</option>
+                    </select>
+                  </div>
+
+                  {timeRange === 'custom' && (
+                    <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-300">
+                      <input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        className="px-3 py-2 bg-slate-50 border border-slate-100 rounded-lg text-[10px] font-black uppercase text-slate-700 focus:outline-none focus:ring-4 focus:ring-brand-primary/5 focus:border-brand-primary/20 transition-all"
+                      />
+                      <span className="text-slate-300 text-[10px] font-black">TO</span>
+                      <input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        className="px-3 py-2 bg-slate-50 border border-slate-100 rounded-lg text-[10px] font-black uppercase text-slate-700 focus:outline-none focus:ring-4 focus:ring-brand-primary/5 focus:border-brand-primary/20 transition-all"
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-1.5">
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="pl-4 pr-10 py-2.5 bg-white border border-slate-200 rounded-lg text-[11px] font-black uppercase tracking-widest text-slate-500 focus:outline-none focus:ring-4 focus:ring-brand-primary/5 focus:border-brand-primary/20 transition-all shadow-sm cursor-pointer appearance-none"
-                  style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '1rem' }}
-                >
-                  <option value="all">All Status</option>
-                  <option value="completed">Completed</option>
-                  <option value="in-progress">Running</option>
-                  <option value="enqueued">Queued</option>
-                  <option value="failed">Failed</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
-                <button
-                  onClick={handleDownloadCSV}
-                  className="p-2.5 text-slate-500 hover:text-slate-700 bg-white border border-slate-200 rounded-lg transition-all shadow-sm hover:bg-slate-50"
-                  title="Export to CSV"
-                >
-                  <Download size={14} />
-                </button>
+            )}
+
+            {activeTab === 'history' && (
+              <div className="flex flex-col md:flex-row items-center gap-2">
+                <div className="relative group w-full max-w-sm">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-primary transition-colors" size={14} />
+                  <input
+                    type="text"
+                    placeholder="Search tasks..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-full text-[11px] focus:outline-none focus:ring-4 focus:ring-brand-primary/5 focus:border-brand-primary/20 transition-all font-medium shadow-sm"
+                  />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="pl-4 pr-10 py-2.5 bg-white border border-slate-200 rounded-lg text-[11px] font-black uppercase tracking-widest text-slate-500 focus:outline-none focus:ring-4 focus:ring-brand-primary/5 focus:border-brand-primary/20 transition-all shadow-sm cursor-pointer appearance-none"
+                    style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '1rem' }}
+                  >
+                    <option value="all">All Status</option>
+                    <option value="completed">Completed</option>
+                    <option value="in-progress">Running</option>
+                    <option value="enqueued">Queued</option>
+                    <option value="failed">Failed</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                  <button
+                    onClick={handleDownloadCSV}
+                    className="p-2.5 text-slate-500 hover:text-slate-700 bg-white border border-slate-200 rounded-lg transition-all shadow-sm hover:bg-slate-50"
+                    title="Export to CSV"
+                  >
+                    <Download size={14} />
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         <div className="p-10">
+          {activeTab === 'performance' && (
+            <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              {agent?.requiredAuths?.length === 0 ? (
+                <div className="py-20 text-center space-y-4">
+                  <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto text-slate-200">
+                    <PieChart size={32} />
+                  </div>
+                  <p className="text-slate-900 font-black uppercase tracking-widest text-sm">No Performance Data</p>
+                  <p className="text-slate-400 text-xs font-medium">This agent doesn't require account integrations for performance tracking.</p>
+                </div>
+              ) : (
+                <div className="space-y-10">
+                  {/* Controls Removed from here */}
+
+
+                  {loadingMetrics && !metrics ? (
+                    <div className="flex items-center justify-center py-20">
+                      <Loader2 className="animate-spin text-brand-primary" size={40} />
+                    </div>
+                  ) : metrics ? (
+                    <div className="space-y-10 animate-in fade-in duration-500">
+                      {/* Summary Cards */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm space-y-4 hover:border-brand-primary/20 transition-all group">
+                          <div className="flex items-center justify-between">
+                            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                              <Users size={20} />
+                            </div>
+                            <span className="text-emerald-500 text-[10px] font-black uppercase">+12.5%</span>
+                          </div>
+                          <div>
+                            <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Estimated Reach</h5>
+                            <p className="text-3xl font-black text-slate-900 mt-1">{metrics.summary.reach.toLocaleString()}</p>
+                          </div>
+                        </div>
+
+                        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm space-y-4 hover:border-brand-primary/20 transition-all group">
+                          <div className="flex items-center justify-between">
+                            <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                              <TrendingUp size={20} />
+                            </div>
+                            <span className="text-emerald-500 text-[10px] font-black uppercase">+8.2%</span>
+                          </div>
+                          <div>
+                            <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Engagement Score</h5>
+                            <p className="text-3xl font-black text-slate-900 mt-1">{metrics.summary.engagement.toLocaleString()}</p>
+                          </div>
+                        </div>
+
+                        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm space-y-4 hover:border-brand-primary/20 transition-all group">
+                          <div className="flex items-center justify-between">
+                            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                              <MousePointer2 size={20} />
+                            </div>
+                            <span className="text-emerald-500 text-[10px] font-black uppercase">+2.1%</span>
+                          </div>
+                          <div>
+                            <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Conversion Events</h5>
+                            <p className="text-3xl font-black text-slate-900 mt-1">{metrics.summary.conversion.toLocaleString()}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Main Chart */}
+                      <div className="bg-white p-10 rounded-3xl border border-slate-100 shadow-sm">
+                        <div className="flex items-center justify-between mb-12">
+                          <div>
+                            <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest">Performance Over Time</h4>
+                            <p className="text-xs text-slate-400 font-medium mt-1">Daily reach and engagement tracking</p>
+                          </div>
+                          <div className="flex items-center gap-6">
+                            <div className="flex items-center gap-2">
+                              <div className="w-3 h-3 rounded-full bg-brand-primary" />
+                              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Reach</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="w-3 h-3 rounded-full bg-brand-primary/20" />
+                              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Engagement</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="h-72 flex items-end gap-3 px-4 border-b border-slate-100 pb-2">
+                          {metrics.chartData.map((day, i) => {
+                            const maxReach = Math.max(...metrics.chartData.map(d => d.reach));
+                            const heightReach = (day.reach / maxReach) * 100;
+                            const heightEng = (day.engagement / maxReach) * 300; 
+
+                            return (
+                              <div key={i} className="flex-1 group relative flex flex-col items-center justify-end h-full">
+                                {/* Tooltip */}
+                                <div className="absolute bottom-full mb-4 opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none translate-y-2 group-hover:translate-y-0">
+                                  <div className="bg-slate-900 text-white p-3 rounded-xl shadow-xl text-[10px] font-black uppercase tracking-widest min-w-[140px]">
+                                    <p className="text-slate-400 mb-2 border-b border-white/10 pb-1">{day.date}</p>
+                                    <div className="flex justify-between gap-4 mb-1">
+                                      <span>Reach</span>
+                                      <span className="text-brand-primary">{day.reach.toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex justify-between gap-4">
+                                      <span>Engage</span>
+                                      <span className="text-emerald-400">{day.engagement.toLocaleString()}</span>
+                                    </div>
+                                  </div>
+                                  <div className="w-2 h-2 bg-slate-900 rotate-45 mx-auto -mt-1" />
+                                </div>
+
+                                <div 
+                                  className="w-full bg-brand-primary/10 rounded-t-md group-hover:bg-brand-primary/20 transition-all absolute bottom-0"
+                                  style={{ height: `${Math.min(heightEng, 100)}%` }}
+                                />
+                                <div 
+                                  className="w-full bg-brand-primary rounded-t-md group-hover:brightness-110 transition-all relative z-0"
+                                  style={{ height: `${heightReach}%` }}
+                                />
+                                <span className="text-[8px] font-black text-slate-400 mt-3 uppercase tracking-tighter absolute -bottom-8">
+                                  {day.date.split('-').slice(1).join('/')}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="pt-14 flex justify-between text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] italic">
+                          <span>Historical Baseline</span>
+                          <span>Projected Growth</span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-20 text-center">
+                      <p className="text-slate-400 font-medium">No metrics data available for this provider.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {activeTab === 'history' && (
             <div className="space-y-8">
 
@@ -878,268 +1103,10 @@ export default function AgentDetails() {
               )}
             </div>
           )}
-
-          {activeTab === 'config' && (
-            <div className="max-w-2xl space-y-10">
-              <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 flex items-start gap-6">
-                <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center text-brand-primary shadow-sm shrink-0">
-                  <ShieldCheck size={24} />
-                </div>
-                <div>
-                  <h4 className="font-black text-slate-900 uppercase tracking-widest text-xs mb-1">Encrypted Configuration</h4>
-                  <p className="text-slate-500 text-xs font-medium leading-relaxed">
-                    System parameters and API credentials are encrypted with AES-256 and stored in your private operational vault. Only you and authorized agents can access these values.
-                  </p>
-                </div>
-              </div>
-
-              {!isAuthConfigured && (
-                <div className="p-6 bg-red-50 rounded-2xl border border-red-100 flex items-start gap-6 animate-pulse">
-                  <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center text-red-600 shadow-sm shrink-0">
-                    <AlertCircle size={24} />
-                  </div>
-                  <div>
-                    <h4 className="font-black text-red-900 uppercase tracking-widest text-xs mb-1">Authorization Required</h4>
-                    <p className="text-red-700 text-xs font-medium leading-relaxed">
-                      This agent requires specific account authorizations to function correctly. Please connect the missing or expired accounts below.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {agent.requiredAuths && agent.requiredAuths.length > 0 && (
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2">
-                    <Link2 size={16} className="text-emerald-600" />
-                    <h4 className="font-black text-slate-900 uppercase tracking-widest text-xs">Protocol Authorizations</h4>
-                  </div>
-                  <div className="grid gap-4">
-                    {agent.requiredAuths.map((authId) => {
-                      const provider = authApps.find(p => p.id === authId);
-                      const authData = userAuthorizations[authId];
-                      const isConnected = !!authData;
-                      let isExpired = false;
-                      if (isConnected && authData.credentials) {
-                        const expiresAt = authData.credentials[`${authId}_expires_at`];
-                        if (expiresAt && Date.now() > expiresAt) isExpired = true;
-                      }
-                      const isAuthorized = isConnected && !isExpired;
-
-                      return (
-                        <div key={authId} className="space-y-2">
-                          <div className="flex items-center justify-between p-5 bg-white border border-slate-100 rounded-2xl shadow-sm group hover:border-emerald-100 transition-all">
-                            <div className="flex items-center gap-4">
-                              <div className={cn(
-                                "w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
-                                isAuthorized ? "bg-emerald-50 text-emerald-600" : (isExpired ? "bg-red-50 text-red-600" : "bg-slate-50 text-slate-400 group-hover:bg-emerald-50")
-                              )}>
-                                {isAuthorized ? <ShieldCheck size={20} /> : <Link2 size={20} />}
-                              </div>
-                              <div>
-                                <p className="text-[11px] font-black text-slate-900 uppercase tracking-tight">
-                                  {provider?.name || authId}
-                                </p>
-                                <p className={cn("text-[10px] font-medium", isExpired ? "text-red-500" : "text-slate-500")}>
-                                  {isAuthorized
-                                    ? `Authorized: ${authData.updatedAt?.toDate ? authData.updatedAt.toDate().toLocaleDateString() : 'Active'}`
-                                    : (isExpired ? 'Authorization Expired' : 'Handshake Required')}
-                                </p>
-                              </div>
-                            </div>
-
-                            {isAuthorized ? (
-                              <div className="flex items-center gap-3">
-                                <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-[10px] font-black uppercase tracking-widest border border-emerald-100">
-                                  <CheckCircle2 size={12} />
-                                  Active
-                                </div>
-                                <button
-                                  onClick={() => {
-                                    const stateObj = { userId: currentUser.uid, agentId: id };
-                                    const stateStr = btoa(JSON.stringify(stateObj));
-                                    window.location.href = `${import.meta.env.VITE_BACKEND_URL}/auth/${authId}?state=${stateStr}`;
-                                  }}
-                                  className="p-2 text-slate-400 hover:text-slate-900 border border-slate-100 rounded-lg transition-all"
-                                  title="Re-authorize"
-                                >
-                                  <RotateCcw size={14} />
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => {
-                                  const stateObj = { userId: currentUser.uid, agentId: id };
-                                  const stateStr = btoa(JSON.stringify(stateObj));
-                                  window.location.href = `${import.meta.env.VITE_BACKEND_URL}/auth/${authId}?state=${stateStr}`;
-                                }}
-                                className="px-4 py-2 bg-slate-900 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/10"
-                              >
-                                Authorize
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {agent.instructions && (
-                <div className="p-8 bg-brand-primary/5 rounded-2xl border border-brand-primary/10 relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 p-4 text-brand-primary/10 group-hover:text-brand-primary/20 transition-colors">
-                    <Info size={40} />
-                  </div>
-                  <div className="relative space-y-4">
-                    <div className="flex items-center gap-2 text-brand-primary">
-                      <Terminal size={18} />
-                      <h4 className="font-black uppercase tracking-widest text-xs font-federo">Operational Instructions</h4>
-                    </div>
-                    <div
-                      className="text-slate-600 text-sm leading-relaxed instruction-content"
-                      dangerouslySetInnerHTML={{ __html: agent.instructions }}
-                    />
-                  </div>
-
-                  <style dangerouslySetInnerHTML={{
-                    __html: `
-                    .instruction-content ul {
-                      list-style-type: disc;
-                      padding-left: 1.5rem;
-                      margin: 0.5rem 0;
-                    }
-                    .instruction-content a {
-                      color: #0ea5e9;
-                      text-decoration: underline;
-                      font-weight: 600;
-                    }
-                  `}} />
-                </div>
-              )}
-
-              <div className="space-y-8">
-                {!hasSchema ? (
-                  <div className="p-10 bg-slate-50 rounded-2xl text-center space-y-3">
-                    <Zap size={40} className="text-amber-500 mx-auto" />
-                    <h5 className="font-black text-slate-900 uppercase tracking-widest text-sm">Autonomous Protocol</h5>
-                    <p className="text-slate-500 text-xs font-medium">This agent is pre-configured and ready for direct deployment without additional credentials.</p>
-                  </div>
-                ) : (
-                  <>
-                    {agent.configSchema.map((field) => {
-                      // Aggregate all global/shared parameters
-                      const globalPool = { ...sharedParams };
-                      Object.values(userAuthorizations).forEach(auth => {
-                        if (auth.credentials) {
-                          Object.entries(auth.credentials).forEach(([k, v]) => {
-                            globalPool[k] = v;
-                            globalPool[k.toLowerCase()] = v;
-                            globalPool[k.toUpperCase()] = v;
-                          });
-                        }
-                      });
-
-                      const displayValue = globalPool[field.key] ||
-                        globalPool[field.key.toLowerCase()] ||
-                        globalPool[field.key.toUpperCase()] || '';
-
-                      const isAuthShared = !sharedParams[field.key] && !!displayValue;
-
-                      return (
-                        <div key={field.key} className="space-y-3">
-                          <label className="text-[11px] font-bold uppercase tracking-widest text-slate-400 flex items-center justify-between group/label">
-                            <div className="flex items-center gap-2">
-                              {field.label}
-                              <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-600 rounded text-[8px] font-black uppercase">
-                                {isAuthShared ? 'OAuth Sync' : 'User Shared'}
-                              </span>
-                            </div>
-                          </label>
-                          <div className="relative group">
-                            <input
-                              type={field.type === 'password' ? 'password' : 'text'}
-                              value={displayValue}
-                              disabled
-                              className={cn(
-                                "w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-xl font-bold focus:outline-none cursor-not-allowed transition-all",
-                                field.type === 'password' ? "text-slate-400 italic" : "text-slate-900 shadow-sm"
-                              )}
-                              placeholder={field.type === 'password' ? '••••••••••••••••' : `Enter ${field.label}`}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    <button
-                      onClick={() => setShowDeployModal(true)}
-                      className="flex items-center gap-2 px-8 py-3 bg-white border border-slate-200 rounded-xl text-xs font-black uppercase tracking-widest text-slate-900 hover:border-slate-900 transition-all shadow-sm"
-                    >
-                      <Settings size={16} /> Reconfigure Parameters
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
-      {/* Configuration Modal */}
-      {showDeployModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setShowDeployModal(false)} />
-          <div className="bg-white max-w-lg w-full rounded-[2.5rem] shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95 duration-300">
-            <header className="p-10 pb-4 flex items-center justify-between">
-              <div>
-                <h2 className="text-3xl font-black text-slate-900 ">System Configuration</h2>
-                <p className="text-slate-500 font-medium text-sm mt-1">Configure {agent.name} for deployment.</p>
-              </div>
-            </header>
 
-            <form onSubmit={handleSaveConfig} className="p-10 pt-4 space-y-10">
-              <div className="space-y-8">
-                {agent.configSchema?.length === 0 ? (
-                  <div className="p-8 bg-slate-50 rounded-3xl text-center space-y-2">
-                    <Zap size={32} className="text-amber-500 mx-auto" />
-                    <p className="text-slate-900 font-black text-sm uppercase tracking-widest">Automatic Deployment</p>
-                    <p className="text-slate-400 text-xs font-medium">This agent does not require additional configuration.</p>
-                  </div>
-                ) : agent.configSchema?.map((field) => (
-                  <div key={field.key} className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">{field.label}</label>
-                    <input
-                      required={field.required !== false}
-                      type={field.type === 'password' ? 'password' : 'text'}
-                      placeholder={field.type === 'password' ? 'Paste your secure key here...' : `e.g. ${field.label}`}
-                      value={sharedParams[field.key] || ''}
-                      className="w-full border-b border-slate-100 py-3 focus:outline-none focus:border-brand-primary transition-colors font-bold text-slate-900"
-                      onChange={(e) => setSharedParams({ ...sharedParams, [field.key]: e.target.value })}
-                    />
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex items-center gap-4 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowDeployModal(false)}
-                  className="flex-1 py-4 text-xs font-black uppercase tracking-widest text-slate-400 hover:text-slate-900"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isConfiguring}
-                  className="flex-[2] py-4 bg-emerald-800 text-white font-black text-xs uppercase tracking-widest rounded-xl shadow-xl shadow-emerald-800/20 hover:bg-emerald-900 transition-all flex items-center justify-center gap-2"
-                >
-                  {isConfiguring ? <Loader2 className="animate-spin" size={20} /> : 'Save Protocol'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
       {/* Task Creation Modal */}
       {showTaskModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

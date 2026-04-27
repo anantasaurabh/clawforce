@@ -207,8 +207,6 @@ export default function Taskforce() {
    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-8">
     {filteredAgents.map((agent, index) => {
      const config = userConfigs[agent.id];
-     const hasSchema = agent.configSchema && agent.configSchema.length > 0;
-     const isConfigured = !hasSchema || config?.isConfigured;
      const accessible = isAgentAccessible(agent);
      const stats = getAgentStats(agent.id);
      const cat = categories.find(c => c.id === agent.category);

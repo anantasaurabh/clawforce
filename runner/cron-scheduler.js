@@ -90,7 +90,7 @@ async function runScheduler() {
         let result;
         switch (post.agentId) {
           case 'linkedin-manager':
-            result = await publishToLinkedIn(post, auths);
+            result = await publishToLinkedIn({ ...post, id: postId }, auths);
             break;
           case 'facebook-manager':
             // Placeholder for future implementation
@@ -135,25 +135,24 @@ async function runScheduler() {
  */
 async function publishToLinkedIn(post, auths) {
   // Determine Target (Default to personal if not specified in post metadata)
-  const target = post.target || 'personal';
+  // If targetUrn is present and looks like an organization, treat as community
+  const isOrgUrn = post.targetUrn && (post.targetUrn.includes('organization') || post.targetUrn.includes('organizationBrand'));
+  const target = post.target || (isOrgUrn ? 'community' : 'personal');
   
-  let token = auths.LINKEDIN_PERSONAL_TOKEN;
-  let urn = auths.LINKEDIN_PERSONAL_URN;
+  let token;
+  let urn;
 
   if (target === 'personal') {
     // Prioritize Social Token as it's generally more reliable for posting
     token = auths.LINKEDIN_SOCIAL_TOKEN || auths.LINKEDIN_PERSONAL_TOKEN;
     
-    // Select the URN that matches our chosen token to avoid 401 mismatch errors
-    if (auths.LINKEDIN_SOCIAL_TOKEN) {
-      // Favor the specific personal URN from the social handshake if available
-      urn = auths.LINKEDIN_SOCIAL_PERSONAL_URN || auths.LINKEDIN_SOCIAL_URN || auths.LINKEDIN_PERSONAL_URN;
-    } else {
-      urn = auths.LINKEDIN_PERSONAL_URN || auths.LINKEDIN_SOCIAL_URN;
-    }
+    // Use targetUrn if explicitly provided, otherwise resolve from auths
+    urn = post.targetUrn || (auths.LINKEDIN_SOCIAL_TOKEN 
+      ? (auths.LINKEDIN_SOCIAL_PERSONAL_URN || auths.LINKEDIN_SOCIAL_URN || auths.LINKEDIN_PERSONAL_URN)
+      : (auths.LINKEDIN_PERSONAL_URN || auths.LINKEDIN_SOCIAL_URN));
   } else {
     // Community/Organization Target
-    token = auths.LINKEDIN_COMMUNITY_TOKEN || auths.LINKEDIN_SOCIAL_TOKEN;
+    token = auths.LINKEDIN_SOCIAL_TOKEN || auths.LINKEDIN_COMMUNITY_TOKEN || auths.LINKEDIN_PERSONAL_TOKEN;
     urn = post.targetUrn || auths.LINKEDIN_COMMUNITY_URN;
 
     if (!urn && auths.LINKEDIN_PAGE_URN) {
@@ -170,9 +169,17 @@ async function publishToLinkedIn(post, auths) {
   }
 
     // Resolve full URN (Preserve prefix if present)
-    const authorUrn = urn && typeof urn === 'string' && urn.includes(':') 
+    const mediaOwnerUrn = urn && typeof urn === 'string' && urn.includes(':') 
       ? urn 
       : (target === 'personal' ? `urn:li:person:${urn}` : `urn:li:organization:${urn}`);
+
+    let authorUrn = mediaOwnerUrn;
+
+    // Normalize: LinkedIn /v2/posts API requires 'urn:li:organization' even for brand pages
+    if (authorUrn.includes('organizationBrand')) {
+      console.log(`[Post ${post.id}] Normalizing brand URN to organization URN for Posts API author field`);
+      authorUrn = authorUrn.replace('organizationBrand', 'organization');
+    }
 
     if (!token || !urn) {
       throw new Error(`Missing credentials for LinkedIn ${target} publication.`);
@@ -180,6 +187,7 @@ async function publishToLinkedIn(post, auths) {
 
     // Native Media Upload Logic
     let assetUrn = null;
+    let isPdf = false;
 
     if (post.mediaUrl) {
       try {
@@ -190,7 +198,7 @@ async function publishToLinkedIn(post, auths) {
         const contentType = mediaRes.headers['content-type'] || 'application/octet-stream';
         
         const isVideo = contentType.includes('video');
-        const isPdf = contentType.includes('pdf') || post.mediaUrl.toLowerCase().endsWith('.pdf');
+        isPdf = contentType.includes('pdf') || post.mediaUrl.toLowerCase().endsWith('.pdf');
         
         // 2. Register Upload
         let recipe = "urn:li:digitalmediaRecipe:feedshare-image";
@@ -200,7 +208,7 @@ async function publishToLinkedIn(post, auths) {
         const registerRes = await axios.post('https://api.linkedin.com/v2/assets?action=registerUpload', {
           registerUploadRequest: {
             recipes: [recipe],
-            owner: authorUrn,
+            owner: mediaOwnerUrn,
             serviceRelationships: [{
               relationshipType: "OWNER",
               identifier: "urn:li:userGeneratedContent"
@@ -209,7 +217,8 @@ async function publishToLinkedIn(post, auths) {
         }, {
           headers: {
             'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'X-Restli-Protocol-Version': '2.0.0'
           }
         });
 
@@ -230,45 +239,65 @@ async function publishToLinkedIn(post, auths) {
       }
     }
 
-    // Use the modern /v2/posts API (supports Documents/PDFs natively)
-    const postData = {
+    // Use the stable /v2/ugcPosts API (more robust for organization brand pages)
+    const ugcPostData = {
         author: authorUrn,
-        commentary: post.content,
-        visibility: "PUBLIC",
-        distribution: {
-            feedDistribution: "MAIN_FEED",
-            targetEntities: [],
-            thirdPartyDistributionChannels: []
-        },
-        lifecycleState: "PUBLISHED"
-    };
-
-    if (assetUrn) {
-        postData.content = {
-            media: {
-                id: assetUrn,
-                title: isPdf ? (post.mediaTitle || "Shared Document") : undefined
+        lifecycleState: "PUBLISHED",
+        specificContent: {
+            "com.linkedin.ugc.ShareContent": {
+                shareCommentary: {
+                    text: post.content
+                },
+                shareMediaCategory: assetUrn ? (isPdf ? "NONE" : (post.mediaUrl.toLowerCase().includes('video') ? "VIDEO" : "IMAGE")) : "NONE",
+                media: assetUrn ? [{
+                    status: "READY",
+                    media: assetUrn,
+                    title: {
+                        text: isPdf ? (post.mediaTitle || "Shared Document") : (post.mediaTitle || "Shared Image")
+                    }
+                }] : []
             }
-        };
-    }
-
-  const response = await axios.post('https://api.linkedin.com/v2/posts', postData, {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      'X-Restli-Protocol-Version': '2.0.0'
-    }
-  });
-
-  if (response.status === 201 || response.status === 200) {
-    // Posts API returns the ID in the x-restli-id header
-    const id = response.headers['x-restli-id'] || response.data.id;
-    return {
-      success: true,
-      link: id ? `https://www.linkedin.com/feed/update/${id}` : null
+        },
+        visibility: {
+            "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
+        }
     };
-  } else {
-    throw new Error(`LinkedIn API returned status ${response.status}: ${JSON.stringify(response.data)}`);
+
+    // Special handling for documents/PDFs which aren't natively supported as 'IMAGE' in ugcPosts
+    // In that case, we might need to use a different category or fallback
+    if (isPdf) {
+      ugcPostData.specificContent["com.linkedin.ugc.ShareContent"].shareMediaCategory = "NONE";
+      delete ugcPostData.specificContent["com.linkedin.ugc.ShareContent"].media;
+      // Note: Truly native document upload is only in /v2/posts, 
+      // so for PDFs we append the link if ugcPosts is used, or we keep trying /v2/posts logic
+    }
+
+  try {
+    const response = await axios.post('https://api.linkedin.com/v2/ugcPosts', ugcPostData, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'X-Restli-Protocol-Version': '2.0.0'
+      }
+    });
+
+    if (response.status === 201 || response.status === 200) {
+      const id = response.data.id;
+      return {
+        success: true,
+        link: id ? `https://www.linkedin.com/feed/update/${id}` : null
+      };
+    } else {
+      const errorData = response.data;
+      const errorMessage = errorData.message || JSON.stringify(errorData);
+      throw new Error(`LinkedIn API returned status ${response.status}: ${errorMessage}`);
+    }
+  } catch (err) {
+    if (err.response) {
+      console.error(`[Post ${post.id}] LinkedIn UGC API Error Detail:`, JSON.stringify(err.response.data, null, 2));
+      throw new Error(`LinkedIn UGC API Error: ${err.response.status} - ${err.response.data.message || JSON.stringify(err.response.data)}`);
+    }
+    throw err;
   }
 }
 

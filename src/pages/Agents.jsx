@@ -263,7 +263,6 @@ function AgentModal({ agent, categories, authApps, onClose, onSuccess }) {
     category: agent?.category || categories[0]?.id || '',
     tier: agent?.tier || 'basic',
     imageUrl: agent?.imageUrl || '',
-    configSchema: Array.isArray(agent?.configSchema) ? agent.configSchema : [],
     instructions: agent?.instructions || '',
     requiredAuths: Array.isArray(agent?.requiredAuths) ? agent.requiredAuths : [],
     customActions: Array.isArray(agent?.customActions) ? agent.customActions : []
@@ -273,25 +272,7 @@ function AgentModal({ agent, categories, authApps, onClose, onSuccess }) {
   const fileInputRef = React.useRef(null);
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const addConfigField = () => {
-    setFormData(prev => ({
-      ...prev,
-      configSchema: [...prev.configSchema, { key: '', label: '', type: 'text', required: true }]
-    }));
-  };
 
-  const removeConfigField = (index) => {
-    setFormData(prev => ({
-      ...prev,
-      configSchema: prev.configSchema.filter((_, i) => i !== index)
-    }));
-  };
-
-  const updateConfigField = (index, field, value) => {
-    const newSchema = [...formData.configSchema];
-    newSchema[index] = { ...newSchema[index], [field]: value };
-    setFormData(prev => ({ ...prev, configSchema: newSchema }));
-  };
 
   const addCustomAction = () => {
     setFormData(prev => ({
@@ -318,12 +299,14 @@ function AgentModal({ agent, categories, authApps, onClose, onSuccess }) {
     try {
       setLoading(true);
 
-      const subtaskData = { ...formData, imageUrl: imagePreview };
+      const { id, ...cleanData } = formData;
+      const subtaskData = { ...cleanData, imageUrl: imagePreview };
 
       if (isEdit) {
         await catalogService.updateAgent(agent.id, subtaskData);
       } else {
-        await catalogService.createAgent(formData.id.toLowerCase().replace(/\s+/g, '-'), subtaskData);
+        const docId = id.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+        await catalogService.createAgent(docId, subtaskData);
       }
       onSuccess();
     } catch (err) {
@@ -494,16 +477,24 @@ function AgentModal({ agent, categories, authApps, onClose, onSuccess }) {
                     placeholder="Agent Name e.g. Sales Prospector"
                     value={formData.name}
                     className="w-full border-b border-slate-100 py-2 focus:outline-none focus:border-emerald-600 transition-colors font-bold text-slate-900 text-lg"
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    onChange={(e) => {
+                      const newName = e.target.value;
+                      setFormData(prev => ({
+                        ...prev,
+                        name: newName,
+                        id: isEdit ? prev.id : (prev.id === prev.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') ? newName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') : prev.id)
+                      }));
+                    }}
                   />
                 </div>
 
                 {!isEdit && (
                   <div className="space-y-1.5">
-                    {/* <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Agent ID</label> */}
+                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Agent ID (Unique Slug)</label>
                     <input
                       required
                       placeholder="unique-slug"
+                      value={formData.id}
                       className="w-full border-b border-slate-100 py-2 focus:outline-none focus:border-emerald-600 transition-colors font-mono text-xs text-slate-500 bg-slate-50 px-2 rounded-t-lg"
                       onChange={(e) => setFormData({ ...formData, id: e.target.value })}
                     />
@@ -522,78 +513,7 @@ function AgentModal({ agent, categories, authApps, onClose, onSuccess }) {
                 />
               </div>
 
-              <div className="p-5 bg-slate-50 rounded-[1.5rem] space-y-4 border border-slate-100">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Settings2 size={14} className="text-emerald-600" />
-                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Configuration Blueprint</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={addConfigField}
-                    className="flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-200 rounded-lg text-[8px] font-black uppercase tracking-widest text-emerald-800 hover:border-emerald-600 transition-all shadow-sm"
-                  >
-                    <Plus size={10} /> Add Field
-                  </button>
-                </div>
 
-                <div className="space-y-2">
-                  {formData.configSchema.length === 0 ? (
-                    <p className="text-center py-2 text-[10px] text-slate-400 font-medium italic">No custom parameters.</p>
-                  ) : formData.configSchema.map((field, index) => (
-                    <div key={index} className="grid grid-cols-12 gap-2 items-center bg-white p-2 rounded-xl border border-slate-100 shadow-sm">
-                      <div className="col-span-3">
-                        <input
-                          placeholder="Field Key"
-                          value={field.key}
-                          className="w-full text-[10px] font-bold bg-slate-50 border-none rounded-md px-2 py-1 focus:ring-1 focus:ring-emerald-500"
-                          onChange={(e) => updateConfigField(index, 'key', e.target.value)}
-                        />
-                      </div>
-                      <div className="col-span-4">
-                        <input
-                          placeholder="Display Label"
-                          value={field.label}
-                          className="w-full text-[10px] font-bold bg-slate-50 border-none rounded-md px-2 py-1 focus:ring-1 focus:ring-emerald-500"
-                          onChange={(e) => updateConfigField(index, 'label', e.target.value)}
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <select
-                          value={field.type}
-                          className="w-full text-[10px] font-bold bg-slate-50 border-none rounded-md px-1 py-1 focus:ring-1 focus:ring-emerald-500"
-                          onChange={(e) => updateConfigField(index, 'type', e.target.value)}
-                        >
-                          <option value="text">Text</option>
-                          <option value="password">Key</option>
-                          <option value="url">Link</option>
-                        </select>
-                      </div>
-                      <div className="col-span-2 flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => updateConfigField(index, 'required', !field.required)}
-                          className={cn(
-                            "flex-1 text-[8px] font-black uppercase py-1 rounded-md transition-all border",
-                            field.required !== false
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-100"
-                              : "bg-white text-slate-400 border-slate-100"
-                          )}
-                        >
-                          Req
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removeConfigField(index)}
-                          className="text-slate-300 hover:text-red-500 transition-colors"
-                        >
-                          <X size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
 
               <div className="p-5 bg-slate-50 rounded-[1.5rem] space-y-4 border border-slate-100">
                 <div className="flex items-center justify-between">

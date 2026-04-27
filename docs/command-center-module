@@ -1,0 +1,70 @@
+# Technical Specification: AI "Command Center" Module
+
+## 1. System Overview
+The **Command Center** is a strategic orchestration layer within the dashboard. It allows users to initiate high-level **Missions** which are processed by an **Orchestrator Agent** (via OpenClaw). The Orchestrator decomposes these missions into executable plans carried out by specialized **Taskforce Agents**.
+
+## 2. Core Components
+
+### A. Navigation & Tabs
+- **Location:** New nav-item "Command Center" positioned below the Dashboard.
+- **Dynamic Tabs:** Each tab (e.g., *Marketing*, *Operations*) is dynamically generated based on Superadmin configurations.
+- **Agent Binding:** Each tab is bound to a specific **Orchestrator Agent** (e.g., `marketing-orchestrator`).
+
+### B. Mission Management (Session-based)
+- **Mission:** A single objective or session (e.g., "Improve website traffic by 30%").
+- **Execution Modes (Checkboxes):**
+    - `[ ] Get plan approved`: Execution pauses until a user reviews the generated `.md` plan.
+    - `[ ] You are free to execute`: Immediate deployment after plan generation.
+- **Constraints:** All plans must be built using available agents and within a **Fixed Budget**. Budget will be used to run ad campigns on google, meta etc or sending emails.
+
+## 3. Data Models
+
+### Mission
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `mission_id` | UUID | Primary Key |
+| `title` | String | User-defined command |
+| `status` | Enum | `Draft`, `Planning`, `WaitingApproval`, `In-Progress`, `Completed`, `Rejected` |
+| `plan_doc` | File Path | Link to the `.md` plan file |
+| `budget_cap` | Decimal | Maximum financial resource allocation |
+| `orchestrator_id` | String | ID of the assigned Orchestrator Agent |
+
+### Plan (.md file)
+The plan is a structured Markdown document containing:
+- **Strategy Overview:** The "How" of the execution.
+- **Taskforce Mapping:** Which agents are being used.
+- **Cost Estimate:** Projected spend per task.
+- **Milestones:** Key checkpoints for the user.
+
+## 4. UI/UX Design
+
+### Mission Control Layout (Split Pane)
+- **Left Pane (Mission Creator):**
+    - Text area for natural language input.
+    - Checkboxes for approval workflow.
+    - Budget input field.
+    - "Create Mission" primary action button.
+- **Right Pane (Mission History/List):**
+    - Scrollable list of active and past missions.
+    - Status indicators and quick filters (e.g., "Needs Approval").
+
+### Mission Detail View
+- **Main Tab (Analytics):**
+    - Aggregated dashboard view.
+    - Real-time data visualization pulled from all participating Taskforce Agents (e.g., Google Analytics, Ad Spend, etc.).
+- **Plan Tab:**
+    - Markdown renderer for the execution plan.
+    - Interactive "Approve" or "Reject" buttons.
+- **Task View:**
+    - A tree or list of child tasks created by the Orchestrator and their individual statuses.
+
+## 5. Workflow Logic
+1. **Input:** User sends a command via the Left Pane.
+2. **Planning:** Orchestrator calls **OpenClaw** to generate a strategy within budget. (same as tasks via runner)
+3. **Approval:** If mandated, the system waits for the user to set status to `Approved`.
+4. **Task Dispatch:** Orchestrator creates multiple child tasks and assigns them to **Taskforce Agents** (who have built-in analytics capabilities).
+5. **Monitoring:** The Mission Detail View aggregates telemetry from all sub-agents into the central Analytics tab.
+
+## 6. Superadmin Capabilities
+- **Tab Management:** Create new tabs in the Command Center.
+- **Agent Mapping:** Link an Orchestrator Agent to a specific Command Center Tab.

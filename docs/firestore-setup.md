@@ -27,9 +27,7 @@ This path contains shared data managed primarily by the SuperAdmin.
   * `description`: (string) Capabilities summary.  
   * `category`: (string) Category slug.  
   * `tier`: (string) `basic` or `premium`.  
-  * `icon`: (string) Lucide icon name.  
-  * **`configSchema` (Array of Maps):** Defines the dynamic form for the agent.  
-    * *Example:* `[{ "key": "openai_key", "label": "OpenAI API Key", "type": "password" }, { "key": "target_url", "label": "Target Website", "type": "text" }]`
+   * `icon`: (string) Lucide icon name.  
 
 ### **1.3 `packages` Collection**
 
@@ -75,13 +73,9 @@ This path contains shared data managed primarily by the SuperAdmin.
 
 * **Document ID:** Agent Slug  
 * **Fields:**  
-  * **`credentials` (Map):** Stores the actual values corresponding to the agent's `configSchema`.  
-    * *Example:* `{ "openai_key": "sk-...", "target_url": "https://google.com" }`  
   * `isConfigured`: (boolean) Flag to quickly check if the agent is ready for deployment.
 
 ## **4\. Database Setup Checklist**
 
-1. **Dynamic Form Generation:** The Frontend should map over `agents[id].configSchema` to render the configuration modal.  
-2. **Security:** By storing `credentials` in the `/users/{userId}/` path, other operators cannot steal a user's API keys.  
-3. **Admin UI:** The SuperAdmin panel needs a "Schema Builder" to add/remove keys from an agent definition.
+1. **Security:** By storing `credentials` in the `/users/{userId}/` path, other operators cannot steal a user's API keys.  
 
