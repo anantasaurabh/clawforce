@@ -93,8 +93,11 @@ async function runScheduler() {
             result = await publishToLinkedIn({ ...post, id: postId }, auths);
             break;
           case 'facebook-manager':
-            // Placeholder for future implementation
-            throw new Error('Facebook publisher not yet implemented');
+            result = await publishToFacebook({ ...post, id: postId }, auths);
+            break;
+          case 'instagram-manager':
+            result = await publishToInstagram({ ...post, id: postId }, auths);
+            break;
           default:
             throw new Error(`Publisher for agent type '${post.agentId}' not found.`);
         }
@@ -299,6 +302,124 @@ async function publishToLinkedIn(post, auths) {
     }
     throw err;
   }
+}
+
+/**
+ * Publisher: Facebook
+ */
+async function publishToFacebook(post, auths) {
+  const token = auths.FACEBOOK_TOKEN;
+  const pageId = post.targetUrn || auths.FACEBOOK_PAGE_ID;
+
+  if (!token) throw new Error('Missing FACEBOOK_TOKEN for authorization.');
+  if (!pageId) throw new Error('Missing target Facebook Page ID.');
+
+  console.log(`[Facebook] Posting to page ${pageId}...`);
+
+  let finalToken = token;
+  try {
+    const pageRes = await axios.get(`https://graph.facebook.com/v19.0/${pageId}`, {
+      params: {
+        fields: 'access_token',
+        access_token: token
+      }
+    });
+    if (pageRes.data && pageRes.data.access_token) {
+      finalToken = pageRes.data.access_token;
+      console.log(`[Facebook] Retrieved Page Access Token for ${pageId}`);
+    }
+  } catch (e) {
+    console.warn(`[Facebook] Failed to get page token, using default user token:`, e.message);
+  }
+
+  let url = `https://graph.facebook.com/v19.0/${pageId}/feed`;
+  const params = {
+    message: post.content,
+    access_token: finalToken
+  };
+
+  if (post.mediaUrl) {
+    const isVideo = post.mediaUrl.toLowerCase().includes('mp4') || post.mediaUrl.toLowerCase().includes('video');
+    if (isVideo) {
+      url = `https://graph.facebook.com/v19.0/${pageId}/videos`;
+      params.description = post.content;
+      params.file_url = post.mediaUrl;
+    } else {
+      url = `https://graph.facebook.com/v19.0/${pageId}/photos`;
+      params.caption = post.content;
+      params.url = post.mediaUrl;
+    }
+  }
+
+  const res = await axios.post(url, null, { params });
+  const resultId = res.data.id || res.data.post_id;
+
+  return {
+    success: true,
+    id: resultId,
+    link: `https://facebook.com/${resultId}`
+  };
+}
+
+/**
+ * Publisher: Instagram
+ */
+async function publishToInstagram(post, auths) {
+  const token = auths.INSTAGRAM_TOKEN || auths.FACEBOOK_TOKEN; 
+  const igUserId = post.targetUrn || auths.INSTAGRAM_USER_ID;
+
+  if (!token) throw new Error('Missing access token for Instagram/Facebook graph.');
+  if (!igUserId) throw new Error('Missing target Instagram Business Account ID.');
+
+  if (!post.mediaUrl) {
+    throw new Error('Instagram requires an image or video media URL. Text-only posting is not supported.');
+  }
+
+  console.log(`[Instagram] Creating media container for ${igUserId}...`);
+  const isVideo = post.mediaUrl.toLowerCase().includes('mp4') || post.mediaUrl.toLowerCase().includes('video');
+
+  const containerRes = await axios.post(`https://graph.facebook.com/v19.0/${igUserId}/media`, null, {
+    params: {
+      caption: post.content,
+      access_token: token,
+      [isVideo ? 'video_url' : 'image_url']: post.mediaUrl,
+      media_type: isVideo ? 'REELS' : 'IMAGE'
+    }
+  });
+
+  const creationId = containerRes.data.id;
+  if (!creationId) throw new Error('Failed to create Instagram media container.');
+
+  console.log(`[Instagram] Container created: ${creationId}. Waiting for processing...`);
+
+  if (isVideo) {
+     let attempts = 0;
+     let status = 'IN_PROGRESS';
+     while (attempts < 10 && status !== 'FINISHED') {
+         await new Promise(resolve => setTimeout(resolve, 5000));
+         attempts++;
+         const statusRes = await axios.get(`https://graph.facebook.com/v19.0/${creationId}`, {
+             params: { fields: 'status_code', access_token: token }
+         });
+         status = statusRes.data.status_code;
+         console.log(`[Instagram] Container status: ${status}`);
+         if (status === 'ERROR') throw new Error('Instagram video processing error.');
+     }
+  }
+
+  console.log(`[Instagram] Publishing container...`);
+  const publishRes = await axios.post(`https://graph.facebook.com/v19.0/${igUserId}/media_publish`, null, {
+    params: {
+      creation_id: creationId,
+      access_token: token
+    }
+  });
+
+  return {
+    success: true,
+    id: publishRes.data.id,
+    link: `https://instagram.com/p/${publishRes.data.id}`
+  };
 }
 
 // Start execution

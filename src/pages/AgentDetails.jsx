@@ -120,6 +120,7 @@ export default function AgentDetails() {
   const [metrics, setMetrics] = useState(null);
   const [loadingMetrics, setLoadingMetrics] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState('');
+  const [selectedTargetId, setSelectedTargetId] = useState('');
   const [timeRange, setTimeRange] = useState('7d');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -136,12 +137,15 @@ export default function AgentDetails() {
         fetchMetrics();
       }
     }
-  }, [selectedProvider, timeRange, activeTab, startDate, endDate]);
+  }, [selectedProvider, selectedTargetId, timeRange, activeTab, startDate, endDate]);
 
   async function fetchMetrics() {
     try {
       setLoadingMetrics(true);
       let url = `${import.meta.env.VITE_BACKEND_URL}/metrics/${selectedProvider}?timeRange=${timeRange}`;
+      if (selectedTargetId) {
+        url += `&targetId=${encodeURIComponent(selectedTargetId)}`;
+      }
       if (timeRange === 'custom') {
         url += `&startDate=${startDate}&endDate=${endDate}`;
       }
@@ -787,7 +791,7 @@ export default function AgentDetails() {
                   <BarChart3 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-primary transition-colors" size={12} />
                   <select
                     value={selectedProvider}
-                    onChange={(e) => setSelectedProvider(e.target.value)}
+                    onChange={(e) => { setSelectedProvider(e.target.value); setSelectedTargetId(''); }}
                     className="pl-8 pr-8 py-2 bg-slate-50 border border-slate-100 rounded-lg text-[10px] font-black uppercase tracking-widest text-slate-700 focus:outline-none focus:ring-4 focus:ring-brand-primary/5 focus:border-brand-primary/20 transition-all cursor-pointer appearance-none min-w-[180px]"
                     style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.5rem center', backgroundSize: '0.75rem' }}
                   >
@@ -797,6 +801,38 @@ export default function AgentDetails() {
                     })}
                   </select>
                 </div>
+
+                {(() => {
+                  const creds = userAuthorizations[selectedProvider]?.credentials || {};
+                  let subAccounts = [];
+                  try {
+                    if (selectedProvider === 'linkedin_social' && creds.LINKEDIN_PAGE_URN) {
+                      subAccounts = JSON.parse(creds.LINKEDIN_PAGE_URN).map(org => ({ id: org.urn, name: org.name }));
+                    } else if (selectedProvider === 'facebook' && creds.FACEBOOK_PAGE_LIST) {
+                      subAccounts = JSON.parse(creds.FACEBOOK_PAGE_LIST).map(page => ({ id: page.id, name: page.name }));
+                    } else if (selectedProvider === 'instagram' && creds.INSTAGRAM_PAGE_LIST) {
+                      subAccounts = JSON.parse(creds.INSTAGRAM_PAGE_LIST).map(ig => ({ id: ig.id, name: ig.username || ig.name }));
+                    }
+                  } catch(e) {}
+
+                  if (subAccounts.length === 0) return null;
+
+                  return (
+                    <div className="relative group animate-in fade-in slide-in-from-left-2 duration-300">
+                      <select
+                        value={selectedTargetId}
+                        onChange={(e) => setSelectedTargetId(e.target.value)}
+                        className="pl-4 pr-8 py-2 bg-slate-50 border border-slate-100 rounded-lg text-[10px] font-black uppercase tracking-widest text-slate-700 focus:outline-none focus:ring-4 focus:ring-brand-primary/5 focus:border-brand-primary/20 transition-all cursor-pointer appearance-none min-w-[180px]"
+                        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.5rem center', backgroundSize: '0.75rem' }}
+                      >
+                        <option value="">All Sub-Accounts</option>
+                        {subAccounts.map(sub => (
+                          <option key={sub.id} value={sub.id}>{sub.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                })()}
 
                 <div className="flex items-center gap-2">
                   <div className="relative group">

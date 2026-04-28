@@ -37,21 +37,20 @@ try {
     let allTargets = [];
     const getEnv = (key) => env[key] || process.env[key] || env[key.toLowerCase()] || process.env[key.toLowerCase()];
     
-    // Add Pages
+    // 2.1 Add LinkedIn Pages
     const rawPages = getEnv('LINKEDIN_PAGE_URN');
     if (rawPages) {
         try {
             const pages = JSON.parse(rawPages);
             if (Array.isArray(pages)) allTargets.push(...pages);
         } catch (e) {
-            // If it's a raw URN string, create a minimal target object
             if (rawPages.includes('urn:li:')) {
                 allTargets.push({ urn: rawPages, name: 'Target Page', pic: null });
             }
         }
     }
     
-    // Add Personal Account Info (check multiple possible keys)
+    // 2.2 Add LinkedIn Personal Info
     const personalKeys = ['LINKEDIN_PERSONAL_INFO', 'LINKEDIN_PERSONAL_URN'];
     for (const key of personalKeys) {
         const val = getEnv(key);
@@ -59,7 +58,6 @@ try {
             try {
                 const personal = JSON.parse(val);
                 if (Array.isArray(personal)) {
-                    // Avoid duplicates
                     personal.forEach(p => {
                         if (!allTargets.find(t => t.urn === p.urn)) allTargets.push(p);
                     });
@@ -72,6 +70,58 @@ try {
         }
     }
 
+    // 2.3 Add Facebook Pages & Personal
+    const fbPagesRaw = getEnv('FACEBOOK_PAGE_LIST');
+    if (fbPagesRaw) {
+        try {
+            const fbPages = JSON.parse(fbPagesRaw);
+            if (Array.isArray(fbPages)) {
+                fbPages.forEach(page => {
+                    allTargets.push({ urn: page.id, name: page.name, pic: page.pic });
+                });
+            }
+        } catch(e) {}
+    }
+    const fbPersonalRaw = getEnv('FACEBOOK_PERSONAL_INFO');
+    if (fbPersonalRaw) {
+        try {
+            const fbPersonal = JSON.parse(fbPersonalRaw);
+            if (Array.isArray(fbPersonal)) {
+                fbPersonal.forEach(p => {
+                    if (!allTargets.find(t => t.urn === p.id)) {
+                        allTargets.push({ urn: p.id, name: p.name, pic: p.pic });
+                    }
+                });
+            }
+        } catch(e) {}
+    }
+
+    // 2.4 Add Instagram Accounts & Personal
+    const igAccountsRaw = getEnv('INSTAGRAM_PAGE_LIST');
+    if (igAccountsRaw) {
+        try {
+            const igAccounts = JSON.parse(igAccountsRaw);
+            if (Array.isArray(igAccounts)) {
+                igAccounts.forEach(ig => {
+                    allTargets.push({ urn: ig.id, name: ig.username || ig.name, pic: ig.pic });
+                });
+            }
+        } catch(e) {}
+    }
+    const igPersonalRaw = getEnv('INSTAGRAM_PERSONAL_INFO');
+    if (igPersonalRaw) {
+        try {
+            const igPersonal = JSON.parse(igPersonalRaw);
+            if (Array.isArray(igPersonal)) {
+                igPersonal.forEach(p => {
+                    if (!allTargets.find(t => t.urn === p.id)) {
+                        allTargets.push({ urn: p.id, name: p.name, pic: p.pic });
+                    }
+                });
+            }
+        } catch(e) {}
+    }
+
     let defaultTarget = { urn: null, name: null, pic: null };
     if (allTargets.length > 0) {
         defaultTarget = { 
@@ -81,8 +131,12 @@ try {
         };
     }
 
+    let agentId = 'linkedin-manager';
+    if (getEnv('FACEBOOK_PAGE_LIST')) agentId = 'facebook-manager';
+    else if (getEnv('INSTAGRAM_PAGE_LIST')) agentId = 'instagram-manager';
+
     if (!defaultTarget.urn) {
-        console.warn(`[Schedule] Warning: No LinkedIn accounts found in environment.`);
+        console.warn(`[Schedule] Warning: No platform accounts found in environment.`);
     }
 
     const payloadObj = {
@@ -94,25 +148,21 @@ try {
             let targetName = p.targetName || defaultTarget.name;
             let targetPic = p.targetPic || defaultTarget.pic;
 
-            // If the agent passed a specific target name, try to match it
-            if (p.targetName && env.LINKEDIN_PAGE_URN) {
-                 try {
-                     const pages = JSON.parse(env.LINKEDIN_PAGE_URN);
-                     const match = pages.find(page => page.name.toLowerCase().includes(p.targetName.toLowerCase()));
-                     if (match) {
-                         targetUrn = match.urn;
-                         targetName = match.name;
-                         targetPic = match.pic;
-                     }
-                 } catch (e) {}
+            // Match from overall aggregated targets
+            if (p.targetName) {
+                 const match = allTargets.find(t => t.name && t.name.toLowerCase().includes(p.targetName.toLowerCase()));
+                 if (match) {
+                     targetUrn = match.urn;
+                     targetName = match.name;
+                     targetPic = match.pic;
+                 }
             }
 
-            // Map both scheduledAt and scheduledFor to scheduledAt
             const scheduledAt = p.scheduledAt || p.scheduledFor;
 
             return {
                 ...p,
-                agentId: 'linkedin-manager',
+                agentId,
                 scheduledAt,
                 targetUrn,
                 targetName,

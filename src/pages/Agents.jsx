@@ -35,6 +35,37 @@ function cn(...inputs) {
   return twMerge(clsx(inputs));
 }
 
+const DynamicActionRow = React.memo(({ action, index, onUpdate, onRemove }) => {
+  return (
+    <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-slate-100 shadow-sm w-full">
+      <div className="w-1/4 min-w-[120px]">
+        <input
+          placeholder="Button Label"
+          value={action.label || ''}
+          className="w-full text-sm font-bold bg-slate-50/80 border border-slate-100 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all text-slate-700"
+          onChange={(e) => onUpdate(index, 'label', e.target.value)}
+        />
+      </div>
+      <div className="flex-1 min-w-[200px]">
+        <input
+          placeholder="Action URL (use {{userId}} and {{secretToken}} placeholders)"
+          value={action.url || ''}
+          className="w-full text-sm font-medium bg-slate-50/80 border border-slate-100 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all text-slate-600"
+          onChange={(e) => onUpdate(index, 'url', e.target.value)}
+        />
+      </div>
+      <div className="shrink-0">
+        <button
+          type="button"
+          onClick={() => onRemove(index)}
+          className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+        >
+          <X size={16} />
+        </button>
+      </div>
+    </div>
+  );
+});
 
 export default function Agents() {
   const [agents, setAgents] = useState([]);
@@ -274,25 +305,33 @@ function AgentModal({ agent, categories, authApps, onClose, onSuccess }) {
 
 
 
-  const addCustomAction = () => {
+  const addCustomAction = React.useCallback(() => {
     setFormData(prev => ({
       ...prev,
       customActions: [...(prev.customActions || []), { label: '', url: '' }]
     }));
-  };
+  }, []);
 
-  const removeCustomAction = (index) => {
+  const removeCustomAction = React.useCallback((index) => {
     setFormData(prev => ({
       ...prev,
-      customActions: prev.customActions.filter((_, i) => i !== index)
+      customActions: (prev.customActions || []).filter((_, i) => i !== index)
     }));
-  };
+  }, []);
 
-  const updateCustomAction = (index, field, value) => {
-    const newActions = [...formData.customActions];
-    newActions[index] = { ...newActions[index], [field]: value };
-    setFormData(prev => ({ ...prev, customActions: newActions }));
-  };
+  const updateCustomAction = React.useCallback((index, field, value) => {
+    setFormData(prev => {
+      const newActions = [...(prev.customActions || [])];
+      if (newActions[index]) {
+        newActions[index] = { ...newActions[index], [field]: value };
+      }
+      return { ...prev, customActions: newActions };
+    });
+  }, []);
+
+  const handleInstructionsChange = React.useCallback((val) => {
+    setFormData(prev => ({ ...prev, instructions: val }));
+  }, []);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -534,33 +573,13 @@ function AgentModal({ agent, categories, authApps, onClose, onSuccess }) {
                   {(!formData.customActions || formData.customActions.length === 0) ? (
                     <p className="text-center py-2 text-[10px] text-slate-400 font-medium italic">No dynamic buttons defined.</p>
                   ) : formData.customActions.map((action, index) => (
-                    <div key={index} className="grid grid-cols-12 gap-2 items-center bg-white p-2 rounded-xl border border-slate-100 shadow-sm">
-                      <div className="col-span-3">
-                        <input
-                          placeholder="Button Label"
-                          value={action.label}
-                          className="w-full text-[10px] font-bold bg-slate-50 border-none rounded-md px-2 py-1 focus:ring-1 focus:ring-amber-500"
-                          onChange={(e) => updateCustomAction(index, 'label', e.target.value)}
-                        />
-                      </div>
-                      <div className="col-span-8">
-                        <input
-                          placeholder="Action URL (use {{userId}} and {{secretToken}} placeholders)"
-                          value={action.url}
-                          className="w-full text-[10px] font-bold bg-slate-50 border-none rounded-md px-2 py-1 focus:ring-1 focus:ring-amber-500"
-                          onChange={(e) => updateCustomAction(index, 'url', e.target.value)}
-                        />
-                      </div>
-                      <div className="col-span-1 flex justify-end">
-                        <button
-                          type="button"
-                          onClick={() => removeCustomAction(index)}
-                          className="text-slate-300 hover:text-red-500 transition-colors"
-                        >
-                          <X size={14} />
-                        </button>
-                      </div>
-                    </div>
+                    <DynamicActionRow
+                      key={index}
+                      action={action}
+                      index={index}
+                      onUpdate={updateCustomAction}
+                      onRemove={removeCustomAction}
+                    />
                   ))}
                 </div>
               </div>
@@ -593,7 +612,7 @@ function AgentModal({ agent, categories, authApps, onClose, onSuccess }) {
                 <div className={cn(isExpanded ? "flex-1 overflow-hidden" : "")}>
                   <RichTextEditor
                     value={formData.instructions}
-                    onChange={(val) => setFormData({ ...formData, instructions: val })}
+                    onChange={handleInstructionsChange}
                     placeholder="Setup steps, verification links, etc..."
                     className={isExpanded ? "h-full" : ""}
                   />

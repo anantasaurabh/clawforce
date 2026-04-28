@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { Bold, Italic, List, Link as LinkIcon, ListOrdered } from 'lucide-react';
 
-export default function RichTextEditor({ value, onChange, placeholder, className }) {
+const RichTextEditor = React.memo(({ value, onChange, placeholder, className }) => {
   const editorRef = useRef(null);
 
   useEffect(() => {
@@ -88,4 +88,6 @@ export default function RichTextEditor({ value, onChange, placeholder, className
       `}} />
     </div>
   );
-}
+});
+
+export default RichTextEditor;

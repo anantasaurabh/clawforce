@@ -65,7 +65,7 @@ app.get('/auth/:provider', (req, res) => {
  */
 app.get('/auth/:provider/callback', async (req, res) => {
   const { provider } = req.params;
-  const { code, state, error, error_description } = req.query;
+  const { code, state, error, error_description, error_message, error_code } = req.query;
 
   const localProviderLogic = PROVIDERS[provider] || {};
 
@@ -83,13 +83,16 @@ app.get('/auth/:provider/callback', async (req, res) => {
     ? `${process.env.HQ_FRONTEND_URL}/agent/${agentId}` 
     : `${process.env.HQ_FRONTEND_URL}/settings`;
 
-  if (error) {
-    console.error(`[${provider}] Auth Error:`, error, error_description);
-    return res.redirect(`${redirectBase}?auth_status=error&message=${encodeURIComponent(error_description)}`);
+  const actualError = error || error_message || error_code;
+  const actualErrorDesc = error_description || error_message || `Auth error code ${error_code}`;
+
+  if (actualError) {
+    console.error(`[${provider}] Auth Error:`, actualError, actualErrorDesc);
+    return res.redirect(`${redirectBase}?auth_status=error&message=${encodeURIComponent(actualErrorDesc)}`);
   }
 
   if (!code || !state) {
-    return res.status(400).send('Missing code or state');
+    return res.redirect(`${redirectBase}?auth_status=error&message=${encodeURIComponent('Missing code or state from provider')}`);
   }
 
   try {
@@ -255,9 +258,8 @@ app.get('/review/:agentId', validateReviewToken, (req, res) => {
   const { agentId } = req.params;
   const viewMap = {
     'linkedin-manager': 'linkedin.html',
-    'facebook-manager': 'facebook.html', // placeholder
-    'instagram-manager': 'instagram.html', // placeholder
-    'email-manager': 'email.html' // placeholder
+    'facebook-manager': 'facebook.html',
+    'instagram-manager': 'instagram.html'
   };
 
   const viewFile = viewMap[agentId] || 'generic_review.html';
@@ -569,7 +571,7 @@ app.post('/api/posts/batch-create', validateReviewToken, async (req, res) => {
 });
 app.get('/metrics/:provider', async (req, res) => {
   const { provider } = req.params;
-  const { timeRange } = req.query;
+  const { timeRange, targetId } = req.query;
 
   try {
     const performanceLogic = PERFORMANCE[provider];
@@ -577,7 +579,7 @@ app.get('/metrics/:provider', async (req, res) => {
       return res.status(404).json({ error: `Performance tracking not implemented for ${provider}` });
     }
 
-    const metrics = await performanceLogic.fetchMetrics(timeRange);
+    const metrics = await performanceLogic.fetchMetrics(timeRange, targetId);
     res.json(metrics);
   } catch (err) {
     console.error(`[Metrics] Error for ${provider}:`, err.message);
