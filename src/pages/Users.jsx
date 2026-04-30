@@ -127,7 +127,9 @@ export default function Users() {
    {/* Header Area */}
    <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
     <div>
-     <h1 className="text-4xl font-black text-slate-900 ">User Management</h1>
+     <h1 className="text-4xl font-black text-slate-900 flex items-center gap-3">
+      <User className="text-brand-primary" /> User Management
+     </h1>
      <p className="text-slate-500 mt-1 font-medium">Access control, agent package assignments, and real-time operator monitoring.</p>
     </div>
     <button 

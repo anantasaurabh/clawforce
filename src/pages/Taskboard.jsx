@@ -296,7 +296,7 @@ export default function Taskboard() {
   ];
 
   return (
-    <div className="p-10 space-y-10 max-w-[1600px] mx-auto">
+    <div className="p-10 space-y-2 max-w-[1600px] mx-auto">
       {/* Header */}
       <header className="flex items-end justify-between">
         <div className="space-y-1">

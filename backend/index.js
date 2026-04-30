@@ -569,6 +569,84 @@ app.post('/api/posts/batch-create', validateReviewToken, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+/**
+ * Post Mission Plan
+ */
+app.post('/api/missions/post-plan', validateReviewToken, async (req, res) => {
+  const { missionId, plan } = req.body;
+
+  if (!missionId || !plan) {
+    return res.status(400).json({ error: 'Missing missionId or plan content' });
+  }
+
+  try {
+    const missionRef = db.collection(`artifacts/clwhq-001/public/data/missions`).doc(missionId);
+    const doc = await missionRef.get();
+    
+    if (!doc.exists) {
+      return res.status(404).json({ error: `Mission ${missionId} not found` });
+    }
+
+    const missionData = doc.data();
+    const nextStatus = missionData.approvePlanBeforeLaunch ? 'WaitingApproval' : 'Approved';
+
+    await missionRef.update({
+      plan_doc: plan,
+      status: nextStatus,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    res.json({ success: true, status: nextStatus });
+  } catch (err) {
+    console.error('[PostPlan] Failure:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Spawn Mission Tasks
+ */
+app.post('/api/missions/post-tasks', validateReviewToken, async (req, res) => {
+  const { missionId, userId, tasks } = req.body;
+
+  if (!missionId || !userId || !Array.isArray(tasks) || tasks.length === 0) {
+    return res.status(400).json({ error: 'Missing missionId, userId, or tasks array' });
+  }
+
+  try {
+    const tasksRef = db.collection(`artifacts/clwhq-001/public/data/tasks`);
+    const createdIds = [];
+
+    for (const task of tasks) {
+      const docRef = await tasksRef.add({
+        title: task.title || 'Execute Task',
+        description: task.description || '',
+        agentId: task.agentId || 'system',
+        ownerId: userId,
+        status: 'enqueued',
+        progress: 0,
+        startTime: admin.firestore.FieldValue.serverTimestamp(),
+        metadata: {
+          parent_mission_id: missionId
+        }
+      });
+      createdIds.push(docRef.id);
+    }
+
+    // Update mission status to In-Progress
+    await db.collection(`artifacts/clwhq-001/public/data/missions`).doc(missionId).update({
+      tasksSpawned: true,
+      status: 'In-Progress',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    res.json({ success: true, count: createdIds.length, ids: createdIds });
+  } catch (err) {
+    console.error('[PostTasks] Failure:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/metrics/:provider', async (req, res) => {
   const { provider } = req.params;
   const { timeRange, targetId } = req.query;

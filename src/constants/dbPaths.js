@@ -9,6 +9,8 @@ export const COLLECTIONS = {
   GLOBAL_VARS: `artifacts/${APP_ID}/public/data/globalVars`,
   AUTH_GROUPS: `artifacts/${APP_ID}/public/data/authGroups`,
   AUTH_APPS: `artifacts/${APP_ID}/public/data/authApps`,
+  COMMANDERS: `artifacts/${APP_ID}/public/data/commanders`,
+  MISSIONS: `artifacts/${APP_ID}/public/data/missions`,
 };
 
 export const getUserConfigPath = (userId) => `artifacts/${APP_ID}/userConfigs/${userId}/agentSettings`;

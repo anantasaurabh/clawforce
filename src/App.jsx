@@ -14,6 +14,8 @@ import AgentDetails from './pages/AgentDetails';
 import Taskboard from './pages/Taskboard';
 import GlobalVars from './pages/GlobalVars';
 import Settings from './pages/Settings';
+import CommandCenter from './pages/CommandCenter';
+import CommandCenterConfig from './pages/CommandCenterConfig';
 
 function App() {
  return (
@@ -27,11 +29,13 @@ function App() {
       </ProtectedRoute>
      }>
       <Route index element={<Dashboard />} />
+      <Route path="command-center" element={<CommandCenter />} />
       <Route path="taskforce" element={<Taskforce />} />
       <Route path="agent/:id" element={<AgentDetails />} />
       <Route path="taskboard" element={<Taskboard />} />
       <Route path="users" element={<Users />} />
       <Route path="agents" element={<Agents />} />
+      <Route path="command-center-config" element={<CommandCenterConfig />} />
       <Route path="categories" element={<Categories />} />
       <Route path="packages" element={<Packages />} />
       <Route path="global-vars" element={<GlobalVars />} />

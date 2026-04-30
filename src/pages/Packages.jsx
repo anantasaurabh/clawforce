@@ -80,7 +80,9 @@ export default function Packages() {
   <div className="space-y-6">
    <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
     <div>
-     <h1 className="text-4xl font-black text-slate-900 ">Operative Tiers</h1>
+     <h1 className="text-4xl font-black text-slate-900 flex items-center gap-3">
+      <Package className="text-brand-primary" /> Operative Tiers
+     </h1>
      <p className="text-slate-500 mt-1 font-medium">Manage pertask levels, agent access envelopes, and concurrency limits.</p>
     </div>
     <button 

@@ -42,7 +42,7 @@ service cloud.firestore {
 
     // 4. Operators can manage their own tasks/posts
     match /artifacts/clwhq-001/public/data/{type}/{docId} {
-      allow write: if (type == 'tasks' || type == 'pending_posts') && 
+      allow write: if (type == 'tasks' || type == 'pending_posts' || type == 'missions') && 
         isAuthenticated() && 
         (isAdmin() || request.resource.data.ownerId == request.auth.uid || resource.data.ownerId == request.auth.uid);
     }

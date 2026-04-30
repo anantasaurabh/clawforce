@@ -30,12 +30,20 @@ You have access to LinkedIn applications via environment variables:
 
 ## Final Reporting Protocol
 Upon successful tool execution, you MUST output a single JSON line as your final response to the system:
-`{"type": "comment", "content": "Human-readable summary of the work, including view-post link (e.g. View Post: URL)"}`
 
-Alternatively, you can simply output:
-`[Comment] Your human-readable summary and links here.`
+```
+{"type": "comment", "content": "Human-readable summary of the work, including view-post link (e.g. View Post: URL)"}
+```
 
-**IF YOU CANNOT PROCEED** (e.g. missing credentials, tool failures), you MUST output:
-`{"status": "error", "message": "Technical reason for failure"}`
+**IF YOU NEED HUMAN INPUT** (e.g. ambiguous target, missing preference, clarification needed), output:
+```
+{"status": "waiting", "message": "Your specific question for the user here."}
+```
+The system will pause the mission and notify the user. When they reply, you will be re-triggered with their answer prepended to the objective.
+
+**IF YOU CANNOT PROCEED** (e.g. missing credentials, tool failures, unrecoverable error), output:
+```
+{"status": "error", "message": "Technical reason for failure"}
+```
 
 Do not include any other text after this final reporting line.

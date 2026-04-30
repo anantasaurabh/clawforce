@@ -13,8 +13,8 @@ The **Command Center** is a strategic orchestration layer within the dashboard. 
 ### B. Mission Management (Session-based)
 - **Mission:** A single objective or session (e.g., "Improve website traffic by 30%").
 - **Execution Modes (Checkboxes):**
-    - `[ ] Get plan approved`: Execution pauses until a user reviews the generated `.md` plan.
-    - `[ ] You are free to execute`: Immediate deployment after plan generation.
+    - `[ ] Approve Plan Before Launch`: Execution pauses until a user reviews the generated `.md` plan.
+    - `[ ] Auto-Pilot Mode`: Immediate deployment after plan generation.
 - **Constraints:** All plans must be built using available agents and within a **Fixed Budget**. Budget will be used to run ad campigns on google, meta etc or sending emails.
 
 ## 3. Data Models

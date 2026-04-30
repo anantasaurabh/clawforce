@@ -63,11 +63,11 @@ function renderContentWithLinks(content) {
   return parts.map((part, i) => {
     if (part.match(urlRegex)) {
       return (
-        <a 
-          key={i} 
-          href={part} 
-          target="_blank" 
-          rel="noopener noreferrer" 
+        <a
+          key={i}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
           className="text-brand-primary hover:underline underline-offset-4 font-bold break-all"
         >
           {part}
@@ -813,7 +813,7 @@ export default function AgentDetails() {
                     } else if (selectedProvider === 'instagram' && creds.INSTAGRAM_PAGE_LIST) {
                       subAccounts = JSON.parse(creds.INSTAGRAM_PAGE_LIST).map(ig => ({ id: ig.id, name: ig.username || ig.name }));
                     }
-                  } catch(e) {}
+                  } catch (e) { }
 
                   if (subAccounts.length === 0) return null;
 
@@ -997,7 +997,7 @@ export default function AgentDetails() {
                           {metrics.chartData.map((day, i) => {
                             const maxReach = Math.max(...metrics.chartData.map(d => d.reach));
                             const heightReach = (day.reach / maxReach) * 100;
-                            const heightEng = (day.engagement / maxReach) * 300; 
+                            const heightEng = (day.engagement / maxReach) * 300;
 
                             return (
                               <div key={i} className="flex-1 group relative flex flex-col items-center justify-end h-full">
@@ -1017,11 +1017,11 @@ export default function AgentDetails() {
                                   <div className="w-2 h-2 bg-slate-900 rotate-45 mx-auto -mt-1" />
                                 </div>
 
-                                <div 
+                                <div
                                   className="w-full bg-brand-primary/10 rounded-t-md group-hover:bg-brand-primary/20 transition-all absolute bottom-0"
                                   style={{ height: `${Math.min(heightEng, 100)}%` }}
                                 />
-                                <div 
+                                <div
                                   className="w-full bg-brand-primary rounded-t-md group-hover:brightness-110 transition-all relative z-0"
                                   style={{ height: `${heightReach}%` }}
                                 />

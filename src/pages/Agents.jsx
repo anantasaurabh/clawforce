@@ -138,7 +138,9 @@ export default function Agents() {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-black text-slate-900 ">Agent Registry</h1>
+          <h1 className="text-4xl font-black text-slate-900 flex items-center gap-3">
+            <Bot className="text-brand-primary" /> Agent Registry
+          </h1>
           <p className="text-slate-500 mt-1 font-medium">Configure AI operatives, endpoint schemas, and operational parameters.</p>
         </div>
         {isAdmin && (

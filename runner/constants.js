@@ -8,6 +8,7 @@ export const COLLECTIONS = {
   TASKS: `artifacts/${APP_ID}/public/data/tasks`,
   PENDING_POSTS: `artifacts/${APP_ID}/public/data/pending_posts`,
   GLOBAL_VARS: `artifacts/${APP_ID}/public/data/globalVars`,
+  MISSIONS: `artifacts/${APP_ID}/public/data/missions`,
 };
 
 export const getUserConfigPath = (userId) => `artifacts/${APP_ID}/userConfigs/${userId}`;

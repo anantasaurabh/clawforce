@@ -2,7 +2,7 @@
 1. openclaw agents add <agent-name>
 2. Change workspace use workspace-<agent-name>
 ## Change SOUL.md
-
+## Change Identity.md
 ## Add Skill
 in the skills folder add your skill in .md file
 use skill format

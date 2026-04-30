@@ -281,6 +281,16 @@ export const taskService = {
     return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   },
 
+  async getMissionTasks(missionId) {
+    const tasksRef = collection(db, COLLECTIONS.TASKS);
+    const q = query(
+      tasksRef, 
+      where('metadata.parent_mission_id', '==', missionId)
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  },
+
   async addComment(taskId, authorRole, content, authorName = '') {
     const commentsRef = collection(db, COLLECTIONS.TASKS, taskId, 'comments');
     await addDoc(commentsRef, {
@@ -301,3 +311,136 @@ export const taskService = {
     await deleteDoc(taskRef);
   }
 };
+
+/**
+ * Command Center & Mission Services
+ */
+export const commandCenterService = {
+  async getTabs() {
+    const tabsRef = collection(db, COLLECTIONS.COMMANDERS);
+    const snap = await getDocs(tabsRef);
+    return snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a, b) => (a.order || 0) - (b.order || 0));
+  },
+
+  async createTab(id, data) {
+    const ref = doc(collection(db, COLLECTIONS.COMMANDERS), id || Math.random().toString(36).substr(2, 9));
+    await setDoc(ref, { ...data, createdAt: serverTimestamp() });
+  },
+
+  async updateTab(id, data) {
+    const ref = doc(db, COLLECTIONS.COMMANDERS, id);
+    await setDoc(ref, { ...data, updatedAt: serverTimestamp() }, { merge: true });
+  },
+
+  async deleteTab(id) {
+    const ref = doc(db, COLLECTIONS.COMMANDERS, id);
+    await deleteDoc(ref);
+  }
+};
+
+export const missionService = {
+  async createMission(userId, data) {
+    const missionsRef = collection(db, COLLECTIONS.MISSIONS);
+    const docRef = await addDoc(missionsRef, {
+      ...data,
+      ownerId: userId,
+      status: 'Planning',
+      progress: 0,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    return docRef.id;
+  },
+
+  async getMissions(userId) {
+    const missionsRef = collection(db, COLLECTIONS.MISSIONS);
+    const snap = await getDocs(missionsRef);
+    const missions = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    
+    return missions
+      .map(m => ({
+        ...m,
+        ownerId: m.ownerId || m.metadata?.ownerId,
+        tab_slug: m.tab_slug || m.metadata?.tab_slug,
+        tab_id: m.tab_id || m.metadata?.tab_id,
+        status: m.status || m.metadata?.status || 'Planning',
+        title: m.title || m.metadata?.title || 'Untitled Mission',
+        plan_doc: m.plan_doc || m.metadata?.plan_doc,
+        createdAt: m.createdAt || m.metadata?.createdAt,
+        updatedAt: m.updatedAt || m.metadata?.updatedAt,
+      }))
+      .filter(m => !userId || m.ownerId === userId)
+      .sort((a, b) => {
+        const dateA = a.updatedAt?.seconds ? a.updatedAt.seconds * 1000 : new Date(a.updatedAt || 0);
+        const dateB = b.updatedAt?.seconds ? b.updatedAt.seconds * 1000 : new Date(b.updatedAt || 0);
+        return dateB - dateA;
+      });
+  },
+
+  subscribeMissions(callback, userId) {
+    const missionsRef = collection(db, COLLECTIONS.MISSIONS);
+    return onSnapshot(missionsRef, (snapshot) => {
+      const missions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      const normalized = missions
+        .map(m => ({
+          ...m,
+          ownerId: m.ownerId || m.metadata?.ownerId,
+          tab_slug: m.tab_slug || m.metadata?.tab_slug,
+          tab_id: m.tab_id || m.metadata?.tab_id,
+          status: m.status || m.metadata?.status || 'Planning',
+          title: m.title || m.metadata?.title || 'Untitled Mission',
+          plan_doc: m.plan_doc || m.metadata?.plan_doc,
+          createdAt: m.createdAt || m.metadata?.createdAt,
+          updatedAt: m.updatedAt || m.metadata?.updatedAt,
+        }))
+        .filter(m => !userId || m.ownerId === userId)
+        .sort((a, b) => {
+          const dateA = a.updatedAt?.seconds ? a.updatedAt.seconds * 1000 : new Date(a.updatedAt || 0);
+          const dateB = b.updatedAt?.seconds ? b.updatedAt.seconds * 1000 : new Date(b.updatedAt || 0);
+          return dateB - dateA;
+        });
+        
+      callback(normalized);
+    });
+  },
+
+  subscribeMissionLogs(missionId, callback) {
+    const logsRef = collection(db, COLLECTIONS.MISSIONS, missionId, 'logs');
+    const q = query(logsRef, orderBy('timestamp', 'asc'));
+    return onSnapshot(q, (snapshot) => {
+      const logs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      callback(logs);
+    });
+  },
+
+  async updateMission(missionId, data) {
+    const ref = doc(db, COLLECTIONS.MISSIONS, missionId);
+    await updateDoc(ref, { ...data, updatedAt: serverTimestamp() });
+  },
+
+  async deleteMission(missionId) {
+    const ref = doc(db, COLLECTIONS.MISSIONS, missionId);
+    await deleteDoc(ref);
+  },
+
+  async addComment(missionId, role, content, authorName = '') {
+    const commentsRef = collection(db, COLLECTIONS.MISSIONS, missionId, 'comments');
+    await addDoc(commentsRef, {
+      role, // 'user' or 'agent'
+      authorName,
+      content,
+      timestamp: serverTimestamp()
+    });
+  },
+
+  subscribeComments(missionId, callback) {
+    const commentsRef = collection(db, COLLECTIONS.MISSIONS, missionId, 'comments');
+    const q = query(commentsRef, orderBy('timestamp', 'asc'));
+    return onSnapshot(q, (snapshot) => {
+      const comments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      callback(comments);
+    });
+  }
+};
+

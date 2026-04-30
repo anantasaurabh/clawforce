@@ -94,16 +94,13 @@ export default function GlobalVars() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8">
+    <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-700">
-              <Globe size={24} />
-            </div>
-            <h1 className="text-4xl font-black text-slate-900 tracking-tight">Global Protocol Variables</h1>
-          </div>
-          <p className="text-slate-500 font-medium">Manage system-wide environment variables and endpoint configurations.</p>
+          <h1 className="text-4xl font-black text-slate-900 flex items-center gap-3">
+            <Globe className="text-brand-primary" /> Global Protocol Variables
+          </h1>
+          <p className="text-slate-500 mt-1 font-medium">Manage system-wide environment variables and endpoint configurations.</p>
         </div>
         
         <div className="flex gap-3">
