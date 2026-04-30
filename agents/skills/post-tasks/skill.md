@@ -16,6 +16,7 @@ This skill is designed to be called natively by OpenClaw. However, if running ma
 ## Parameters
 
 - **tasks** (array, required): An array of task objects specifying operational commands
+- **silent** (boolean, optional): If true, tasks will be created in the `silent-tasks` collection and won't appear in the public dashboard. Default is `false`.
 
 ## Example (Native Call)
 ```json

@@ -32,6 +32,7 @@ try {
     const env = data.context?.env || {};
 
     const tasks = params.tasks;
+    const isSilent = params.silent || false;
     const missionId = env.OPENCLAW_MISSION_ID || process.env.OPENCLAW_MISSION_ID;
     const userId = env.USER_ID || process.env.USER_ID;
     const backendUrl = env.CLAWFORCE_BACKEND_URL || env.clawforce_backend_url || process.env.CLAWFORCE_BACKEND_URL;
@@ -62,7 +63,8 @@ try {
         missionId,
         userId,
         token,
-        tasks
+        tasks,
+        silent: isSilent
     });
 
     const url = new URL(`${backendUrl.replace(/\/$/, '')}/api/missions/post-tasks`);

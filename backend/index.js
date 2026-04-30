@@ -607,18 +607,22 @@ app.post('/api/missions/post-plan', validateReviewToken, async (req, res) => {
  * Spawn Mission Tasks
  */
 app.post('/api/missions/post-tasks', validateReviewToken, async (req, res) => {
-  const { missionId, userId, tasks } = req.body;
+  const { missionId, userId, tasks, silent = false } = req.body;
 
   if (!missionId || !userId || !Array.isArray(tasks) || tasks.length === 0) {
     return res.status(400).json({ error: 'Missing missionId, userId, or tasks array' });
   }
 
   try {
-    const tasksRef = db.collection(`artifacts/clwhq-001/public/data/tasks`);
+    const publicTasksRef = db.collection(`artifacts/clwhq-001/public/data/tasks`);
+    const silentTasksRef = db.collection(`artifacts/clwhq-001/public/data/silent_tasks`);
     const createdIds = [];
 
     for (const task of tasks) {
-      const docRef = await tasksRef.add({
+      const isSilent = task.silent || silent;
+      const targetRef = isSilent ? silentTasksRef : publicTasksRef;
+
+      const docRef = await targetRef.add({
         title: task.title || 'Execute Task',
         description: task.description || '',
         agentId: task.agentId || 'system',
@@ -627,7 +631,8 @@ app.post('/api/missions/post-tasks', validateReviewToken, async (req, res) => {
         progress: 0,
         startTime: admin.firestore.FieldValue.serverTimestamp(),
         metadata: {
-          parent_mission_id: missionId
+          parent_mission_id: missionId,
+          isSilent: !!isSilent
         }
       });
       createdIds.push(docRef.id);
