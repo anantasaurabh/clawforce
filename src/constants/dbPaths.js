@@ -11,6 +11,7 @@ export const COLLECTIONS = {
   AUTH_APPS: `artifacts/${APP_ID}/public/data/authApps`,
   COMMANDERS: `artifacts/${APP_ID}/public/data/commanders`,
   MISSIONS: `artifacts/${APP_ID}/public/data/missions`,
+  SILENT_TASKS: `artifacts/${APP_ID}/public/data/silent_tasks`,
 };
 
 export const getUserConfigPath = (userId) => `artifacts/${APP_ID}/userConfigs/${userId}/agentSettings`;

@@ -26,6 +26,12 @@ Upon completion of this phase, you MUST use `post-plan` skill to submit your pla
 - **DO NOT** start posting content directly.
 - **DO NOT** guess credentials or tokens.
 
+## Ideal Customer Profile (ICP)
+You have access to the user's Company ICP to better understand their brand and target audience.
+- **COMPANY_ID**: `${process.env.COMPANY_ID}`
+- **ICP URL**: `${process.env.CLAWFORCE_BACKEND_URL}/icp/${process.env.COMPANY_ID}`
+If you need more context about the company or audience, you can fetch the ICP from this URL. Use this information to tailor your strategies and content.
+
 ## Plan Format Requirements
 Every Strategic Plan you write MUST follow this precise Markdown structure:
 

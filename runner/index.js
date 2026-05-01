@@ -103,11 +103,15 @@ async function processTask(collectionName, taskId, task) {
   }
 
   // 2.2 Fetch User's Global Review Token & Shared Parameters
-  const userConfigPath = getUserConfigPath(ownerId);
+  const userConfigPath = `artifacts/clwhq-001/userConfigs/${ownerId}`;
   const userConfigSnap = await db.doc(userConfigPath).get();
   const userConfig = userConfigSnap.exists ? userConfigSnap.data() : {};
   const globalReviewToken = userConfig.globalReviewToken || '';
   const sharedParameters = userConfig.sharedParameters || {};
+  const companyId = userConfig.companyId || ownerId;
+
+  console.log(`[Runner] Fetching config for ${ownerId} at ${userConfigPath}. Found: ${userConfigSnap.exists}`);
+  console.log(`[Runner] GlobalReviewToken: ${globalReviewToken ? 'YES (len:' + globalReviewToken.length + ')' : 'NO'}`);
 
   for (const [key, value] of Object.entries(sharedParameters)) {
     authorizations[key] = value;
@@ -127,10 +131,15 @@ async function processTask(collectionName, taskId, task) {
     ...globalVars,
     USER_ID: ownerId,
     TOKEN: globalReviewToken,
+    COMPANY_ID: companyId,
     CURRENT_TIME: new Date().toISOString(),
     OPENCLAW_TASK_ID: taskId,
-    COLLECTION_NAME: collectionName
+    COLLECTION_NAME: collectionName,
+    OPENCLAW_SKILLS_PATH: '/var/www/web/hq-clawforce.altovation.in/public_html/agents/skills',
+    CLAWFORCE_BACKEND_URL: globalVars.CLAWFORCE_BACKEND_URL || 'https://dev-backend-clawforce.altovation.in'
   };
+
+  console.log(`[Runner] TOKEN being injected: ${env.TOKEN ? 'YES' : 'NO'}`);
 
   const command = `openclaw agent --agent "${agentId}" --session-id "${taskId}" --message "${message.replace(/"/g, '\\"')}" --local`;
 
@@ -148,13 +157,28 @@ async function processTask(collectionName, taskId, task) {
         ...globalVars,
         USER_ID: ownerId,
         TOKEN: globalReviewToken,
-        CURRENT_TIME: env.CURRENT_TIME
+        COMPANY_ID: companyId,
+        CURRENT_TIME: env.CURRENT_TIME,
+        OPENCLAW_TASK_ID: taskId,
+        COLLECTION_NAME: collectionName
       }
     }
   };
 
-  clawProcess.stdin.write(JSON.stringify(context) + "\n");
-  clawProcess.stdin.end();
+  clawProcess.on('error', (err) => {
+    console.error(`[Runner] Failed to start OpenClaw:`, err.message);
+  });
+
+  clawProcess.stdin.on('error', (err) => {
+    console.error(`[Runner] Stdin error:`, err.message);
+  });
+
+  try {
+    clawProcess.stdin.write(JSON.stringify(context) + "\n");
+    clawProcess.stdin.end();
+  } catch (err) {
+    console.error(`[Runner] Error writing context to stdin:`, err.message);
+  }
 
   // 4. Handle process errors
   clawProcess.on('error', (error) => {
@@ -176,6 +200,24 @@ async function processTask(collectionName, taskId, task) {
         try {
           const json = JSON.parse(trimmed);
           const content = json.content || json.summary || json.message;
+
+          // --- ICP Interception ---
+          // The runner directly writes the ICP to Firestore using the admin SDK.
+          // This bypasses the post-icp skill's credential chain entirely, which is
+          // unreliable across VPS boundaries (OpenClaw may reload its own .env,
+          // clobbering the per-user USER_ID/TOKEN the runner injected).
+          if (json.type === 'icp' && json.content) {
+            const icpContent = json.content.substring(0, 5000);
+            console.log(`[${taskId}] ICP intercepted by runner. Writing directly to Firestore for owner: ${ownerId}`);
+            db.collection('artifacts/clwhq-001/userConfigs').doc(ownerId).set(
+              { icp: icpContent, updatedAt: admin.firestore.FieldValue.serverTimestamp() },
+              { merge: true }
+            ).then(() => {
+              console.log(`[${taskId}] ICP written to Firestore successfully for ${ownerId}.`);
+            }).catch(err => {
+              console.error(`[${taskId}] Failed to write ICP to Firestore:`, err.message);
+            });
+          }
 
           if (content && (json.type === 'comment' || json.status === 'success')) {
             addComment(collectionName, taskId, 'agent', content, agentId);

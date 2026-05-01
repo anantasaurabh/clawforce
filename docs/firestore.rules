@@ -28,21 +28,27 @@ service cloud.firestore {
     // --- USER PRIVATE DATA ---
     
     // 3. Users can always write to their own private folders
-    match /artifacts/clwhq-001/userConfigs/{userId}/{allPaths=**} {
+    match /artifacts/clwhq-001/userConfigs/{userId} {
       allow write: if isAuthenticated() && request.auth.uid == userId;
+      match /{allPaths=**} {
+        allow write: if isAuthenticated() && request.auth.uid == userId;
+      }
     }
     
-    match /artifacts/clwhq-001/userAuthorizations/{userId}/{allPaths=**} {
+    match /artifacts/clwhq-001/userAuthorizations/{userId} {
       allow write: if isAuthenticated() && request.auth.uid == userId;
+      match /{allPaths=**} {
+        allow write: if isAuthenticated() && request.auth.uid == userId;
+      }
     }
     
     match /artifacts/clwhq-001/public/data/users/{userId} {
       allow write: if isAuthenticated() && request.auth.uid == userId;
     }
 
-    // 4. Operators can manage their own tasks/posts
+    // 4. Operators can manage their own tasks/posts/missions
     match /artifacts/clwhq-001/public/data/{type}/{docId} {
-      allow write: if (type == 'tasks' || type == 'pending_posts' || type == 'missions') && 
+      allow write: if (type == 'tasks' || type == 'pending_posts' || type == 'missions' || type == 'silent_tasks') && 
         isAuthenticated() && 
         (isAdmin() || request.resource.data.ownerId == request.auth.uid || resource.data.ownerId == request.auth.uid);
     }

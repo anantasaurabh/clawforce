@@ -13,111 +13,129 @@ if (process.argv[2]) {
         rawInput = arg;
     }
 } else {
-    // Fallback to stdin
     try {
         rawInput = fs.readFileSync(0, 'utf8');
-    } catch (e) {
-        // If stdin is not available/empty
-    }
+    } catch (e) {}
 }
 
 if (!rawInput || !rawInput.trim()) {
-    console.log(JSON.stringify({ status: "error", message: "No input received from OpenClaw via argument, file, or stdin." }));
+    console.log(JSON.stringify({ status: "error", message: "No input received." }));
     process.exit(1);
 }
 
-try {
-    const data = JSON.parse(rawInput);
-    const params = data.params || {};
-    const env = data.context?.env || {};
-
-    const tasks = params.tasks;
-    const isSilent = params.silent || false;
-    const missionId = env.OPENCLAW_MISSION_ID || process.env.OPENCLAW_MISSION_ID;
-    const userId = env.USER_ID || process.env.USER_ID;
-    const backendUrl = env.CLAWFORCE_BACKEND_URL || env.clawforce_backend_url || process.env.CLAWFORCE_BACKEND_URL;
-    const token = env.TOKEN || process.env.TOKEN;
-
-    if (!tasks || !Array.isArray(tasks) || tasks.length === 0) {
-        console.log(JSON.stringify({ status: "error", message: "No tasks provided." }));
-        process.exit(1);
-    }
-
-    if (!missionId) {
-        console.log(JSON.stringify({ status: "error", message: "Missing OPENCLAW_MISSION_ID in context." }));
-        process.exit(1);
-    }
-
-    if (!userId) {
-        console.log(JSON.stringify({ status: "error", message: "Missing USER_ID in context." }));
-        process.exit(1);
-    }
-
-    if (!backendUrl || !token) {
-        console.log(JSON.stringify({ status: "error", message: "Missing CLAWFORCE_BACKEND_URL or review TOKEN in context." }));
-        process.exit(1);
-    }
-
-    // 2. Prepare Payload for Backend
-    const payload = JSON.stringify({
-        missionId,
-        userId,
-        token,
-        tasks,
-        silent: isSilent
-    });
-
-    const url = new URL(`${backendUrl.replace(/\/$/, '')}/api/missions/post-tasks`);
-    const protocol = url.protocol === 'https:' ? https : http;
-
-    const options = {
-        hostname: url.hostname,
-        port: url.port,
-        path: url.pathname,
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-            'Content-Length': Buffer.byteLength(payload)
-        }
-    };
-
-    const req = protocol.request(options, (res) => {
-        let body = '';
-        res.on('data', (d) => body += d);
-        res.on('end', () => {
-            if (res.statusCode === 200 || res.statusCode === 201) {
-                try {
-                    const responseJson = JSON.parse(body);
-                    console.log(JSON.stringify({
-                        status: "success",
-                        message: `Successfully spawned ${tasks.length} platform deployment tasks via Backend.`,
-                        taskIds: responseJson.ids || []
-                    }));
-                } catch (e) {
-                    console.log(JSON.stringify({
-                        status: "success",
-                        message: `Successfully spawned ${tasks.length} platform deployment tasks via Backend.`
-                    }));
-                }
-            } else {
-                console.log(JSON.stringify({
-                    status: "error",
-                    message: `Backend API returned ${res.statusCode}: ${body}`
-                }));
-                process.exit(1);
+function postJson(backendUrl, path, payload) {
+    return new Promise((resolve, reject) => {
+        const body = JSON.stringify(payload);
+        const url = new URL(`${backendUrl.replace(/\/$/, '')}${path}`);
+        const protocol = url.protocol === 'https:' ? https : http;
+        const options = {
+            hostname: url.hostname,
+            port: url.port || (url.protocol === 'https:' ? 443 : 80),
+            path: url.pathname,
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(body)
             }
+        };
+        const req = protocol.request(options, (res) => {
+            let data = '';
+            res.on('data', (d) => data += d);
+            res.on('end', () => resolve({ statusCode: res.statusCode, body: data }));
         });
+        req.on('error', reject);
+        req.write(body);
+        req.end();
     });
-
-    req.on('error', (e) => {
-        console.log(JSON.stringify({ status: "error", message: e.message }));
-        process.exit(1);
-    });
-    req.write(payload);
-    req.end();
-
-} catch (err) {
-    console.log(JSON.stringify({ status: "error", message: "Failed to process request: " + err.message }));
-    process.exit(1);
 }
+
+(async () => {
+    try {
+        const data = JSON.parse(rawInput);
+        const params = data.params || {};
+        const env = data.context?.env || {};
+
+        const tasks = params.tasks;
+        const silent = params.silent || false;
+        const backendUrl = env.CLAWFORCE_BACKEND_URL || env.clawforce_backend_url
+            || process.env.CLAWFORCE_BACKEND_URL
+            || 'https://dev-backend-clawforce.altovation.in';
+
+        const taskId = env.OPENCLAW_TASK_ID || process.env.OPENCLAW_TASK_ID;
+        const collectionName = env.COLLECTION_NAME || process.env.COLLECTION_NAME;
+        const missionId = env.OPENCLAW_MISSION_ID || process.env.OPENCLAW_MISSION_ID || params.missionId;
+
+        if (!tasks || !Array.isArray(tasks) || tasks.length === 0) {
+            console.log(JSON.stringify({ status: "error", message: "No tasks provided." }));
+            process.exit(1);
+        }
+
+        if (!missionId) {
+            console.log(JSON.stringify({ status: "error", message: "Missing missionId." }));
+            process.exit(1);
+        }
+
+        if (taskId) {
+            console.error(`[post-tasks] PRIMARY: calling /api/missions/post-tasks-by-task`);
+            const result = await postJson(backendUrl, '/api/missions/post-tasks-by-task', {
+                taskId,
+                collectionName,
+                missionId,
+                tasks,
+                silent
+            });
+
+            if (result.statusCode === 200 || result.statusCode === 201) {
+                const responseJson = JSON.parse(result.body);
+                console.log(JSON.stringify({
+                    status: "success",
+                    message: `Successfully spawned ${tasks.length} platform deployment tasks via task-based endpoint.`,
+                    taskIds: responseJson.ids || []
+                }));
+                process.exit(0);
+            } else {
+                console.error(`[post-tasks] Primary path failed (${result.statusCode}): ${result.body}`);
+            }
+        }
+
+        // Fallback
+        const userId = env.USER_ID;
+        const token = env.TOKEN;
+
+        if (!userId || !token) {
+            console.log(JSON.stringify({
+                status: "error",
+                message: "No taskId and no userId/token in context. Authentication failed."
+            }));
+            process.exit(1);
+        }
+
+        console.error(`[post-tasks] FALLBACK: calling /api/missions/post-tasks`);
+        const fallbackResult = await postJson(backendUrl, '/api/missions/post-tasks', {
+            userId,
+            token,
+            missionId,
+            tasks,
+            silent
+        });
+
+        if (fallbackResult.statusCode === 200 || fallbackResult.statusCode === 201) {
+            const responseJson = JSON.parse(fallbackResult.body);
+            console.log(JSON.stringify({
+                status: "success",
+                message: `Successfully spawned ${tasks.length} tasks via fallback endpoint.`,
+                taskIds: responseJson.ids || []
+            }));
+        } else {
+            console.log(JSON.stringify({
+                status: "error",
+                message: `Fallback backend API returned ${fallbackResult.statusCode}: ${fallbackResult.body}`
+            }));
+            process.exit(1);
+        }
+
+    } catch (err) {
+        console.log(JSON.stringify({ status: "error", message: "Failed to process request: " + err.message }));
+        process.exit(1);
+    }
+})();

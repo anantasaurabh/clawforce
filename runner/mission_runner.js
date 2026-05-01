@@ -158,18 +158,22 @@ async function processMission(missionId, mission) {
   });
 
   // 2.1 Fetch User's Global Review Token & Shared Parameters
-  const userConfigPath = getUserConfigPath(ownerId);
+  const userConfigPath = `artifacts/clwhq-001/userConfigs/${ownerId}`;
   const userConfigSnap = await db.doc(userConfigPath).get();
   const userConfig = userConfigSnap.exists ? userConfigSnap.data() : {};
   const globalReviewToken = userConfig.globalReviewToken || '';
   const sharedParameters = userConfig.sharedParameters || {};
+  const companyId = userConfig.companyId || ownerId;
+
+  console.log(`[Mission ${missionId}] Fetching config for ${ownerId} at ${userConfigPath}. Found: ${userConfigSnap.exists}`);
+  console.log(`[Mission ${missionId}] GlobalReviewToken: ${globalReviewToken ? 'YES (len:' + globalReviewToken.length + ')' : 'NO'}`);
 
   for (const [key, value] of Object.entries(sharedParameters)) {
     authorizations[key] = value;
     authorizations[key.toUpperCase()] = value;
   }
 
-  // 2.3 Fetch System-wide Global Variables
+  // 2.2 Fetch System-wide Global Variables
   const globalVarsRef = db.collection(COLLECTIONS.GLOBAL_VARS).doc('settings');
   const globalVarsSnap = await globalVarsRef.get();
   const globalVars = globalVarsSnap.exists ? globalVarsSnap.data() : {};
@@ -181,9 +185,16 @@ async function processMission(missionId, mission) {
     ...globalVars,
     USER_ID: ownerId,
     TOKEN: globalReviewToken,
+    COMPANY_ID: companyId,
     CURRENT_TIME: new Date().toISOString(),
-    OPENCLAW_MISSION_ID: missionId
+    OPENCLAW_MISSION_ID: missionId,
+    OPENCLAW_TASK_ID: missionId,
+    COLLECTION_NAME: COLLECTIONS.MISSIONS,
+    OPENCLAW_SKILLS_PATH: '/var/www/web/hq-clawforce.altovation.in/public_html/agents/skills',
+    CLAWFORCE_BACKEND_URL: globalVars.CLAWFORCE_BACKEND_URL || 'https://dev-backend-clawforce.altovation.in'
   };
+
+  console.log(`[Mission ${missionId}] TOKEN being injected: ${env.TOKEN ? 'YES' : 'NO'}`);
 
   const command = `openclaw agent --agent "${tab_slug}" --session-id "${missionId}" --message "${message.replace(/"/g, '\\"')}" --local`;
 
@@ -202,13 +213,29 @@ async function processMission(missionId, mission) {
         ...globalVars,
         USER_ID: ownerId,
         TOKEN: globalReviewToken,
-        CURRENT_TIME: env.CURRENT_TIME
+        COMPANY_ID: companyId,
+        CURRENT_TIME: env.CURRENT_TIME,
+        OPENCLAW_MISSION_ID: missionId,
+        OPENCLAW_TASK_ID: missionId,
+        COLLECTION_NAME: COLLECTIONS.MISSIONS
       }
     }
   };
 
-  clawProcess.stdin.write(JSON.stringify(context) + "\n");
-  clawProcess.stdin.end();
+  clawProcess.on('error', (err) => {
+    console.error(`[Mission ${missionId}] Failed to start OpenClaw:`, err.message);
+  });
+
+  clawProcess.stdin.on('error', (err) => {
+    console.error(`[Mission ${missionId}] Stdin error:`, err.message);
+  });
+
+  try {
+    clawProcess.stdin.write(JSON.stringify(context) + "\n");
+    clawProcess.stdin.end();
+  } catch (err) {
+    console.error(`[Mission ${missionId}] Error writing context to stdin:`, err.message);
+  }
 
   // 4. Handle process errors
   clawProcess.on('error', (error) => {

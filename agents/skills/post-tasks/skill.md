@@ -1,50 +1,46 @@
 ---
 name: post-tasks
-version: 1.0.0
-description: Spawns execution tasks across social networking managers via Node.js.
-metadata: {"clawdbot": {"emoji": "🚀", "requires": {"bins": ["node"]}}, "entrypoint": "node post-tasks.js"}
+version: 2.0.0
+description: Spawns mission tasks via the Clawforce backend.
+metadata: {"clawdbot": {"emoji": "🔧", "requires": {"bins": ["node"]}}, "entrypoint": "node post-tasks.js"}
 ---
 
-# Task Dispatcher
+# Task Spawner
 
-This skill allows agents to break down approved strategic plans into independent, execution-ready tasks for appropriate subordinate platform operators.
+This skill allows agents to spawn multiple mission tasks via the Clawforce backend.
 
-## Usage
-
-This skill is designed to be called natively by OpenClaw. However, if running manually, it accepts a JSON object via command line argument, file path, or `stdin`.
+It uses **task-ID-based authentication** to securely resolve the owner and mission context server-side.
 
 ## Parameters
 
-- **tasks** (array, required): An array of task objects specifying operational commands
-- **silent** (boolean, optional): If true, tasks will be created in the `silent-tasks` collection and won't appear in the public dashboard. Default is `false`.
+- **tasks** (array, required): An array of task objects to be spawned.
+- **missionId** (string, optional): The ID of the parent mission.
+- **silent** (boolean, optional): If true, spawns as silent tasks.
+
+## Required Environment Variables
+
+- `OPENCLAW_TASK_ID` — The Firestore document ID of the active task.
+- `OPENCLAW_MISSION_ID` — The ID of the active mission.
+- `COLLECTION_NAME` — The Firestore collection path for the task.
+- `CLAWFORCE_BACKEND_URL` — Backend base URL.
 
 ## Example (Native Call)
 ```json
 {
   "params": {
     "tasks": [
-      {
-        "title": "Deploy Instagram Test",
-        "description": "Post new branding metrics layout.",
-        "agentId": "instagram-manager"
-      }
-    ]
+      { "title": "Research Competitors", "agentId": "online-marketing-orchestrator" }
+    ],
+    "missionId": "m_123"
+  },
+  "context": {
+    "env": {
+      "OPENCLAW_TASK_ID": "task_abc",
+      "OPENCLAW_MISSION_ID": "m_123",
+      "COLLECTION_NAME": "artifacts/clwhq-001/public/data/tasks"
+    }
   }
 }
-```
-
-## Manual Execution (CLI)
-To avoid complex shell redirections, pass the JSON directly as an argument or use a temporary file:
-
-```bash
-# Option A: Direct argument
-node post-tasks.js '{"params": {"tasks": [...]}}'
-
-# Option B: Temporary file
-cat > tasks.json <<'EOF'
-{ "params": { "tasks": [...] } }
-EOF
-node post-tasks.js tasks.json
 ```
 
 ## Response
@@ -53,20 +49,7 @@ Success:
 ```json
 {
   "status": "success",
-  "message": "Successfully spawned 1 platform deployment tasks.",
-  "taskIds": ["..."]
+  "message": "Successfully spawned X platform deployment tasks via task-based endpoint.",
+  "taskIds": ["id1", "id2"]
 }
 ```
-
-Error:
-```json
-{
-  "status": "error",
-  "message": "Error description"
-}
-```
-
-## Notes
-
-- Only valid Agent IDs are acceptable: `linkedin-manager`, `facebook-manager`, `instagram-manager`
-- Operations map dynamically upon resolution loops.

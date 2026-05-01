@@ -27,6 +27,38 @@ admin.initializeApp({
 const db = admin.firestore();
 
 /**
+ * Helper: Verify Task and Get OwnerId
+ * Resolves the ownerId from a taskId and collectionName.
+ * Throws error if task not found or not active.
+ */
+const verifyTaskAndGetOwner = async (taskId, collectionName) => {
+  if (!taskId) throw new Error('Missing taskId');
+  
+  const collection = collectionName || 'artifacts/clwhq-001/public/data/silent_tasks';
+  const taskRef = db.collection(collection).doc(taskId);
+  const taskSnap = await taskRef.get();
+
+  if (!taskSnap.exists) {
+    throw new Error(`Task ${taskId} not found in ${collection}`);
+  }
+
+  const taskData = taskSnap.data();
+  const ownerId = taskData.ownerId;
+
+  if (!ownerId) {
+    throw new Error('Task has no ownerId');
+  }
+
+  // Security check: Only allow active tasks to perform actions
+  if (taskData.status !== 'in-progress' && taskData.status !== 'enqueued') {
+    throw new Error(`Task ${taskId} is in status '${taskData.status}', not active. Rejected.`);
+  }
+
+  return ownerId;
+};
+
+
+/**
  * Generic OAuth Initialization Endpoint
  * Redirects user to the provider's consent screen.
  */
@@ -191,7 +223,13 @@ const normalizeAgentId = (id) => {
  * Token Validation Middleware
  */
 const validateReviewToken = async (req, res, next) => {
-  const { userId, token } = { ...req.query, ...req.body };
+  let { userId, token } = { ...req.query, ...req.body };
+  
+  // If token is missing in body/query, check Authorization header
+  if (!token && req.headers.authorization) {
+    token = req.headers.authorization.split(' ')[1];
+  }
+
   let agentId = req.params.agentId || req.query.agentId || req.body.agentId;
   
   console.log(`[Auth Check] User: ${userId}, Agent: ${agentId}, Token: ${token ? token.substring(0, 4) + '...' : 'MISSING'}`);
@@ -207,6 +245,7 @@ const validateReviewToken = async (req, res, next) => {
     const userSnap = await userRef.get();
     if (userSnap.exists && userSnap.data().globalReviewToken === token) {
       console.log(`[Auth Check] Success: Global token matched for ${userId}`);
+      req.verifiedUserId = userId; // Attach verified userId so routes don't trust body
       return next();
     }
 
@@ -219,18 +258,20 @@ const validateReviewToken = async (req, res, next) => {
       
       if (configSnap.exists && configSnap.data().reviewSecretToken === token) {
         console.log(`[Auth Check] Success: Agent token matched for ${agentId}`);
+        req.verifiedUserId = userId;
         return next();
       } else {
         console.log(`[Auth Check] Agent token mismatch for ${agentId}. Expected: ${configSnap.exists ? configSnap.data().reviewSecretToken : 'NOT_FOUND'}`);
       }
     }
 
-    // 3. Last Resort: Check if token matches ANY agent
+    // 3. Last Resort: Check if token matches ANY agent for this user only
     const configPath = getUserConfigPath(userId);
     const agentsSnap = await db.collection(configPath).get();
     const match = agentsSnap.docs.find(doc => doc.data().reviewSecretToken === token);
     if (match) {
       console.log(`[Auth Check] Success: Token matched other agent ${match.id}`);
+      req.verifiedUserId = userId;
       return next();
     }
 
@@ -396,10 +437,38 @@ app.post('/api/:agentId/delete', validateReviewToken, async (req, res) => {
     await postRef.delete();
     res.json({ success: true });
   } catch (err) {
-    console.error('[Delete] Failure:', err.message);
+    console.error('[PostPlan] Failure:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
+
+/**
+ * Post Mission Plan by Task ID
+ */
+app.post('/api/missions/post-plan-by-task', async (req, res) => {
+  const { taskId, collectionName, missionId, plan } = req.body;
+
+  if (!taskId || !missionId || !plan) {
+    return res.status(400).json({ error: 'Missing taskId, missionId, or plan' });
+  }
+
+  try {
+    const ownerId = await verifyTaskAndGetOwner(taskId, collectionName);
+
+    const missionRef = db.collection(`artifacts/clwhq-001/public/data/missions`).doc(missionId);
+    await missionRef.update({
+      plan,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    console.log(`[PostPlanByTask] Success: Plan updated for mission ${missionId} by owner ${ownerId} via task ${taskId}`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[PostPlanByTask] Failure:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 /**
  * Batch Delete Posts
@@ -569,6 +638,62 @@ app.post('/api/posts/batch-create', validateReviewToken, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+/**
+ * Batch Create Posts by Task ID
+ */
+app.post('/api/posts/batch-create-by-task', async (req, res) => {
+  const { taskId, collectionName, posts } = req.body;
+
+  if (!taskId || !Array.isArray(posts) || posts.length === 0) {
+    return res.status(400).json({ error: 'Missing taskId or posts array' });
+  }
+
+  try {
+    const ownerId = await verifyTaskAndGetOwner(taskId, collectionName);
+    
+    const postsRef = db.collection(`artifacts/clwhq-001/public/data/pending_posts`);
+    const batch = db.batch();
+    const createdIds = [];
+
+    posts.forEach(post => {
+      const newPostRef = postsRef.doc();
+      const postData = {
+        agentId: post.agentId || 'linkedin-manager',
+        ownerId: ownerId,
+        content: post.content,
+        mediaUrl: post.mediaUrl || null,
+        status: post.status || 'pending',
+        targetUrn: post.targetUrn || null,
+        targetName: post.targetName || null,
+        targetPic: post.targetPic || null,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      };
+
+      const scheduledAtVal = post.scheduledAt || post.scheduledFor;
+      if (scheduledAtVal) {
+        try {
+          const date = new Date(scheduledAtVal);
+          if (!isNaN(date.getTime())) {
+            postData.scheduledAt = admin.firestore.Timestamp.fromDate(date);
+          }
+        } catch (e) {}
+      }
+
+      batch.set(newPostRef, postData);
+      createdIds.push(newPostRef.id);
+    });
+
+    await batch.commit();
+    console.log(`[BatchCreateByTask] Success: ${createdIds.length} posts created for ${ownerId} via task ${taskId}`);
+    res.json({ success: true, count: createdIds.length, ids: createdIds });
+  } catch (err) {
+    console.error('[BatchCreateByTask] Failure:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 /**
  * Post Mission Plan
  */
@@ -599,6 +724,312 @@ app.post('/api/missions/post-plan', validateReviewToken, async (req, res) => {
     res.json({ success: true, status: nextStatus });
   } catch (err) {
     console.error('[PostPlan] Failure:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Spawn Mission Tasks
+ */
+app.post('/api/missions/post-tasks', validateReviewToken, async (req, res) => {
+  const { missionId, userId, tasks, silent = false } = req.body;
+
+  if (!missionId || !userId || !Array.isArray(tasks) || tasks.length === 0) {
+    return res.status(400).json({ error: 'Missing missionId, userId, or tasks array' });
+  }
+
+  try {
+    const publicTasksRef = db.collection(`artifacts/clwhq-001/public/data/tasks`);
+    const silentTasksRef = db.collection(`artifacts/clwhq-001/public/data/silent_tasks`);
+    const createdIds = [];
+
+    for (const task of tasks) {
+      const isSilent = task.silent || silent;
+      const targetRef = isSilent ? silentTasksRef : publicTasksRef;
+
+      const docRef = await targetRef.add({
+        title: task.title || 'Execute Task',
+        description: task.description || '',
+        agentId: task.agentId || 'system',
+        ownerId: userId,
+        status: 'enqueued',
+        progress: 0,
+        startTime: admin.firestore.FieldValue.serverTimestamp(),
+        metadata: {
+          parent_mission_id: missionId,
+          isSilent: !!isSilent
+        }
+      });
+      createdIds.push(docRef.id);
+    }
+
+    // Update mission status to In-Progress
+    await db.collection(`artifacts/clwhq-001/public/data/missions`).doc(missionId).update({
+      tasksSpawned: true,
+      status: 'In-Progress',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    res.json({ success: true, ids: createdIds });
+  } catch (err) {
+    console.error('[PostTasks] Failure:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Spawn Mission Tasks by Task ID
+ */
+app.post('/api/missions/post-tasks-by-task', async (req, res) => {
+  const { taskId, collectionName, missionId, tasks, silent = false } = req.body;
+
+  if (!taskId || !missionId || !Array.isArray(tasks) || tasks.length === 0) {
+    return res.status(400).json({ error: 'Missing taskId, missionId, or tasks' });
+  }
+
+  try {
+    const ownerId = await verifyTaskAndGetOwner(taskId, collectionName);
+
+    const publicTasksRef = db.collection(`artifacts/clwhq-001/public/data/tasks`);
+    const silentTasksRef = db.collection(`artifacts/clwhq-001/public/data/silent_tasks`);
+    const batch = db.batch();
+    const createdIds = [];
+
+    tasks.forEach(task => {
+      const targetRef = (task.silent || silent) ? silentTasksRef.doc() : publicTasksRef.doc();
+      batch.set(targetRef, {
+        ...task,
+        missionId,
+        ownerId: ownerId,
+        status: 'enqueued',
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      createdIds.push(targetRef.id);
+    });
+
+    await batch.commit();
+    console.log(`[PostTasksByTask] Success: ${createdIds.length} tasks spawned for mission ${missionId} by owner ${ownerId} via task ${taskId}`);
+    res.json({ success: true, ids: createdIds });
+  } catch (err) {
+    console.error('[PostTasksByTask] Failure:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Post to LinkedIn by Task ID (Backend Proxy)
+ */
+app.post('/api/linkedin/post-by-task', async (req, res) => {
+  const { taskId, collectionName, target, content } = req.body;
+
+  if (!taskId || !content) {
+    return res.status(400).json({ error: 'Missing taskId or content' });
+  }
+
+  try {
+    const ownerId = await verifyTaskAndGetOwner(taskId, collectionName);
+
+    // 1. Fetch LinkedIn tokens for this owner
+    const authPath = `artifacts/clwhq-001/userAuthorizations/${ownerId}/providers/linkedin_social`;
+    const authSnap = await db.doc(authPath).get();
+
+    if (!authSnap.exists) {
+      return res.status(401).json({ error: 'LinkedIn authorization not found for this user.' });
+    }
+
+    const authData = authSnap.data();
+    const token = authData.linkedin_social_token;
+    
+    if (!token) {
+      return res.status(401).json({ error: 'LinkedIn token missing.' });
+    }
+
+    // 2. Resolve URN
+    let urn = null;
+    if (target === 'personal') {
+      const personalInfoRaw = authData.LINKEDIN_PERSONAL_INFO || authData.linkedin_personal_urn || authData.linkedin_social_personal_urn;
+      if (personalInfoRaw) {
+        try {
+          const info = typeof personalInfoRaw === 'string' ? JSON.parse(personalInfoRaw) : personalInfoRaw;
+          urn = Array.isArray(info) ? info[0]?.urn : info.urn;
+        } catch (e) { urn = personalInfoRaw; }
+      }
+    } else {
+      const pageUrnRaw = authData.LINKEDIN_PAGE_URN || authData.linkedin_social_urn;
+      if (pageUrnRaw) {
+        try {
+          const pages = typeof pageUrnRaw === 'string' ? JSON.parse(pageUrnRaw) : pageUrnRaw;
+          if (Array.isArray(pages) && pages.length > 0) {
+            urn = pages[0].urn;
+          } else {
+            urn = pages.urn;
+          }
+        } catch (e) { urn = pageUrnRaw; }
+      }
+    }
+
+    if (!urn) {
+      return res.status(400).json({ error: `Could not resolve LinkedIn URN for target: ${target}` });
+    }
+
+    // 3. Post to LinkedIn
+    const authorUrn = urn.includes(':') ? urn : (target === 'personal' ? `urn:li:person:${urn}` : `urn:li:organization:${urn}`);
+    
+    const postData = {
+      author: authorUrn,
+      lifecycleState: "PUBLISHED",
+      specificContent: {
+        "com.linkedin.ugc.ShareContent": {
+          shareCommentary: { text: content },
+          shareMediaCategory: "NONE"
+        }
+      },
+      visibility: { "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC" }
+    };
+
+    const response = await axios.post('https://api.linkedin.com/v2/ugcPosts', postData, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'X-Restli-Protocol-Version': '2.0.0'
+      }
+    });
+
+    let link = null;
+    if (response.data.id) {
+      link = `https://www.linkedin.com/feed/update/${response.data.id}`;
+    }
+
+    console.log(`[LinkedInPostByTask] Success: Posted to ${target} for owner ${ownerId} via task ${taskId}`);
+    res.json({ success: true, link });
+
+  } catch (err) {
+    console.error('[LinkedInPostByTask] Failure:', err.response?.data || err.message);
+    res.status(err.response?.status || 500).json({ 
+      error: err.message, 
+      details: err.response?.data 
+    });
+  }
+});
+
+
+/**
+ * Public ICP Endpoint
+ */
+app.get('/icp/:companyId', async (req, res) => {
+  const { companyId } = req.params;
+  try {
+    const configRef = db.collection(`artifacts/clwhq-001/userConfigs`);
+    const snap = await configRef.where('companyId', '==', companyId).limit(1).get();
+    
+    if (snap.empty) {
+      // Fallback: Check if companyId is actually a userId
+      const userSnap = await configRef.doc(companyId).get();
+      if (userSnap.exists) {
+        return res.json({ icp: userSnap.data().icp || 'No ICP generated yet.' });
+      }
+      return res.status(404).send('Company not found');
+    }
+    
+    const data = snap.docs[0].data();
+    res.json({ icp: data.icp || 'No ICP generated yet.' });
+  } catch (err) {
+    console.error('[GetICP] Failure:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Update ICP by Task ID (Skill-safe endpoint)
+ *
+ * Accepts taskId + collectionName instead of userId + token.
+ * The backend looks up the task in Firestore (using admin SDK) to get the
+ * authoritative ownerId server-side. This bypasses the broken token/userId
+ * chain when skills run on a remote VPS with stale .env credentials.
+ *
+ * Security: taskId is a random, unguessable Firestore document ID.
+ *           The task must exist and be in-progress to prevent replays.
+ */
+app.post('/api/user/update-icp-by-task', async (req, res) => {
+  const { taskId, collectionName, icp } = req.body;
+
+  if (!taskId || !icp) {
+    return res.status(400).json({ error: 'Missing taskId or icp' });
+  }
+
+  // Default to the silent_tasks collection if not specified
+  const collection = collectionName || 'artifacts/clwhq-001/public/data/silent_tasks';
+
+  try {
+    // 1. Fetch the task to get the authoritative ownerId
+    const taskRef = db.collection(collection).doc(taskId);
+    const taskSnap = await taskRef.get();
+
+    if (!taskSnap.exists) {
+      console.warn(`[UpdateICP] Task ${taskId} not found in ${collection}`);
+      return res.status(404).json({ error: `Task ${taskId} not found` });
+    }
+
+    const taskData = taskSnap.data();
+    const ownerId = taskData.ownerId;
+
+    if (!ownerId) {
+      return res.status(400).json({ error: 'Task has no ownerId' });
+    }
+
+    // 2. Validate task is active (prevents replay of old task IDs)
+    if (taskData.status !== 'in-progress' && taskData.status !== 'enqueued') {
+      console.warn(`[UpdateICP] Task ${taskId} is in status '${taskData.status}', not active. Rejecting.`);
+      return res.status(403).json({ error: `Task is not active (status: ${taskData.status})` });
+    }
+
+    // 3. Write ICP to the correct user's config
+    const icpContent = icp.substring(0, 5000);
+    const configRef = db.collection('artifacts/clwhq-001/userConfigs').doc(ownerId);
+    await configRef.set(
+      { icp: icpContent, updatedAt: admin.firestore.FieldValue.serverTimestamp() },
+      { merge: true }
+    );
+
+    console.log(`[UpdateICP] Success: ICP written for owner ${ownerId} via task ${taskId}`);
+    res.json({ success: true, ownerId });
+
+  } catch (err) {
+    console.error('[UpdateICP] Failure:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Update User Config (e.g. ICP)
+ */
+app.post('/api/user/update-config', validateReviewToken, async (req, res) => {
+  // SECURITY: Use the userId that was verified by the token middleware,
+  // NOT the userId from req.body (which could be spoofed or stale).
+  const verifiedUserId = req.verifiedUserId;
+  const { updates } = req.body;
+
+  if (!verifiedUserId || !updates) {
+    return res.status(400).send('Missing verified userId or updates');
+  }
+
+  // Sanity check: warn if body userId differs from verified userId
+  if (req.body.userId && req.body.userId !== verifiedUserId) {
+    console.warn(`[UpdateConfig] SECURITY: body.userId (${req.body.userId}) !== verifiedUserId (${verifiedUserId}). Using verified.`);
+  }
+
+  try {
+    const configRef = db.collection(`artifacts/clwhq-001/userConfigs`).doc(verifiedUserId);
+    await configRef.set({
+      ...updates,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    console.log(`[UpdateConfig] Success: wrote to userConfig for ${verifiedUserId}`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[UpdateConfig] Failure:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

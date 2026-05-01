@@ -3,6 +3,7 @@ import { Outlet, NavLink, useNavigate, useLocation, Link } from 'react-router-do
 import { catalogService } from '../services/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import ProfileModal from '../components/ProfileModal';
+import GlobalAlert from '../components/GlobalAlert';
 import {
   LayoutDashboard,
   Users,
@@ -299,8 +300,11 @@ export default function DashboardLayout() {
         </header>
 
         {/* Page Content */}
-        <div className="flex-1 overflow-y-auto px-8 bg-[#F8FAFC]">
-          <Outlet />
+        <div className="flex-1 overflow-y-auto pt-6 bg-[#F8FAFC]">
+          <GlobalAlert />
+          <div className="px-10 pb-10">
+            <Outlet />
+          </div>
         </div>
       </main>
     </div>

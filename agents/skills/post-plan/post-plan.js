@@ -13,96 +13,124 @@ if (process.argv[2]) {
         rawInput = arg;
     }
 } else {
-    // Fallback to stdin
     try {
         rawInput = fs.readFileSync(0, 'utf8');
-    } catch (e) {
-        // If stdin is not available/empty
-    }
+    } catch (e) {}
 }
 
 if (!rawInput || !rawInput.trim()) {
-    console.log(JSON.stringify({ status: "error", message: "No input received from OpenClaw via argument, file, or stdin." }));
+    console.log(JSON.stringify({ status: "error", message: "No input received." }));
     process.exit(1);
 }
 
-try {
-    const data = JSON.parse(rawInput);
-    const params = data.params || {};
-    const env = data.context?.env || {};
-
-    const plan = params.plan;
-    const missionId = env.OPENCLAW_MISSION_ID || process.env.OPENCLAW_MISSION_ID;
-    const userId = env.USER_ID || process.env.USER_ID || 'admin';
-    const backendUrl = env.CLAWFORCE_BACKEND_URL || env.clawforce_backend_url || process.env.CLAWFORCE_BACKEND_URL;
-    const token = env.TOKEN || process.env.TOKEN;
-
-    if (!plan) {
-        console.log(JSON.stringify({ status: "error", message: "No plan provided in parameters." }));
-        process.exit(1);
-    }
-
-    if (!missionId) {
-        console.log(JSON.stringify({ status: "error", message: "Missing OPENCLAW_MISSION_ID in context." }));
-        process.exit(1);
-    }
-
-    if (!backendUrl || !token) {
-        console.log(JSON.stringify({ status: "error", message: "Missing CLAWFORCE_BACKEND_URL or review TOKEN in context." }));
-        process.exit(1);
-    }
-
-    // 2. Prepare Payload for Backend
-    const payload = JSON.stringify({
-        missionId,
-        plan,
-        userId,
-        token
+function postJson(backendUrl, path, payload) {
+    return new Promise((resolve, reject) => {
+        const body = JSON.stringify(payload);
+        const url = new URL(`${backendUrl.replace(/\/$/, '')}${path}`);
+        const protocol = url.protocol === 'https:' ? https : http;
+        const options = {
+            hostname: url.hostname,
+            port: url.port || (url.protocol === 'https:' ? 443 : 80),
+            path: url.pathname,
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(body)
+            }
+        };
+        const req = protocol.request(options, (res) => {
+            let data = '';
+            res.on('data', (d) => data += d);
+            res.on('end', () => resolve({ statusCode: res.statusCode, body: data }));
+        });
+        req.on('error', reject);
+        req.write(body);
+        req.end();
     });
+}
 
-    const url = new URL(`${backendUrl.replace(/\/$/, '')}/api/missions/post-plan`);
-    const protocol = url.protocol === 'https:' ? https : http;
+(async () => {
+    try {
+        const data = JSON.parse(rawInput);
+        const params = data.params || {};
+        const env = data.context?.env || {};
 
-    const options = {
-        hostname: url.hostname,
-        port: url.port,
-        path: url.pathname,
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-            'Content-Length': Buffer.byteLength(payload)
+        const plan = params.plan;
+        const backendUrl = env.CLAWFORCE_BACKEND_URL || env.clawforce_backend_url
+            || process.env.CLAWFORCE_BACKEND_URL
+            || 'https://dev-backend-clawforce.altovation.in';
+
+        const taskId = env.OPENCLAW_TASK_ID || process.env.OPENCLAW_TASK_ID;
+        const collectionName = env.COLLECTION_NAME || process.env.COLLECTION_NAME;
+        const missionId = env.OPENCLAW_MISSION_ID || process.env.OPENCLAW_MISSION_ID || params.missionId;
+
+        if (!plan) {
+            console.log(JSON.stringify({ status: "error", message: "No plan provided." }));
+            process.exit(1);
         }
-    };
 
-    const req = protocol.request(options, (res) => {
-        let body = '';
-        res.on('data', (d) => body += d);
-        res.on('end', () => {
-            if (res.statusCode === 200 || res.statusCode === 201) {
+        if (!missionId) {
+            console.log(JSON.stringify({ status: "error", message: "Missing missionId." }));
+            process.exit(1);
+        }
+
+        if (taskId) {
+            console.error(`[post-plan] PRIMARY: calling /api/missions/post-plan-by-task`);
+            const result = await postJson(backendUrl, '/api/missions/post-plan-by-task', {
+                taskId,
+                collectionName,
+                missionId,
+                plan
+            });
+
+            if (result.statusCode === 200 || result.statusCode === 201) {
                 console.log(JSON.stringify({
                     status: "success",
-                    message: "Strategic plan drafted successfully via Backend.",
+                    message: "Strategic plan drafted successfully via task-based endpoint.",
                     plan_doc: plan
                 }));
+                process.exit(0);
             } else {
-                console.log(JSON.stringify({
-                    status: "error",
-                    message: `Backend API returned ${res.statusCode}: ${body}`
-                }));
-                process.exit(1);
+                console.error(`[post-plan] Primary path failed (${result.statusCode}): ${result.body}`);
             }
+        }
+
+        // Fallback or Legacy check
+        const userId = env.USER_ID;
+        const token = env.TOKEN;
+
+        if (!userId || !token) {
+            console.log(JSON.stringify({
+                status: "error",
+                message: "No taskId and no userId/token in context. Authentication failed."
+            }));
+            process.exit(1);
+        }
+
+        console.error(`[post-plan] FALLBACK: calling /api/missions/post-plan`);
+        const fallbackResult = await postJson(backendUrl, '/api/missions/post-plan', {
+            userId,
+            token,
+            missionId,
+            plan
         });
-    });
 
-    req.on('error', (e) => {
-        console.log(JSON.stringify({ status: "error", message: e.message }));
+        if (fallbackResult.statusCode === 200 || fallbackResult.statusCode === 201) {
+            console.log(JSON.stringify({
+                status: "success",
+                message: "Strategic plan drafted successfully via fallback endpoint.",
+                plan_doc: plan
+            }));
+        } else {
+            console.log(JSON.stringify({
+                status: "error",
+                message: `Fallback backend API returned ${fallbackResult.statusCode}: ${fallbackResult.body}`
+            }));
+            process.exit(1);
+        }
+
+    } catch (err) {
+        console.log(JSON.stringify({ status: "error", message: "Failed to process request: " + err.message }));
         process.exit(1);
-    });
-    req.write(payload);
-    req.end();
-
-} catch (err) {
-    console.log(JSON.stringify({ status: "error", message: "Failed to process request: " + err.message }));
-    process.exit(1);
-}
+    }
+})();

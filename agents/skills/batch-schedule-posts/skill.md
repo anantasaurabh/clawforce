@@ -1,64 +1,46 @@
 ---
 name: batch-schedule-posts
-version: 1.0.0
-description: Batch schedules multiple LinkedIn posts via the HQ-Clawforce backend.
+version: 2.0.0
+description: Batch schedules multiple LinkedIn/Social posts via the Clawforce backend.
 metadata: {
   "clawdbot": { "emoji": "📅", "requires": { "bins": ["node"] } },
-  "entrypoint": "node schedule-posts.js",
-  "auth": ["CLAWFORCE_BACKEND_URL", "USER_ID", "TOKEN"]
+  "entrypoint": "node schedule-posts.js"
 }
 ---
 
 # 📅 Batch Post Scheduler
 
-This tool queues multiple posts to the **HQ-Clawforce** backend. It is the primary tool for high-volume content planning.
+This tool queues multiple posts to the **HQ-Clawforce** backend using task-ID based authentication.
 
-## Protocol
-The tool expects a JSON object via `stdin` with an array of post objects:
+## Parameters
+
+- **posts** (array, required): An array of post objects.
+  - `content`: Post text.
+  - `scheduledAt`: ISO timestamp.
+  - `status`: Optional status ("approved" or "pending").
+  - `targetName`: Optional name of the page/profile to match.
+  - `agentId`: Optional. The ID of the agent calling this skill (e.g., "linkedin-manager"). Defaults to "linkedin-manager".
+
+## Required Environment Variables
+
+- `OPENCLAW_TASK_ID` — The Firestore document ID of the active task.
+- `COLLECTION_NAME` — The Firestore collection path for the task.
+- `CLAWFORCE_BACKEND_URL` — Backend base URL.
+- `LINKEDIN_PAGE_URN` — (Optional) Injected to help match targets.
+
+## Example (Native Call)
 ```json
 {
   "params": {
     "posts": [
-      { 
-        "content": "Post text here", 
-        "scheduledAt": "ISO_TIMESTAMP",
-        "targetName": "Page Name",
-        "targetUrn": "urn:li:organization:123",
-        "targetPic": "https://..."
-      }
+      { "content": "Hello World", "scheduledAt": "2024-05-01T12:00:00Z" }
     ]
   },
   "context": {
     "env": {
-      "CLAWFORCE_BACKEND_URL": "...",
-      "USER_ID": "...",
-      "TOKEN": "...",
-      "LINKEDIN_PAGE_URN": "[...]"
+      "OPENCLAW_TASK_ID": "task_abc",
+      "COLLECTION_NAME": "artifacts/clwhq-001/public/data/tasks"
     }
   }
 }
-```
-
-**Note**: The agent should parse the `LINKEDIN_PAGE_URN` array from the environment to find the exact `urn` and `pic` for the requested target. Pass these explicitly in `targetUrn` and `targetPic`.
-
-## Example
-```bash
-node schedule-posts.js <<EOF
-{
-  "params": {
-    "posts": [
-      { "content": "AI is the future.", "scheduledAt": "2026-05-01T10:00:00Z", "targetName": "Tech Innovations", "targetUrn": "urn:li:organization:456", "targetPic": "https://example.com/tech.png" },
-      { "content": "Design matters.", "scheduledAt": "2026-05-02T10:00:00Z", "targetName": "Design Hub", "targetUrn": "urn:li:organization:789", "targetPic": "null"   }
-    ]
-  },
-  "context": {
-    "env": {
-      "CLAWFORCE_BACKEND_URL": "http://localhost:3000",
-      "USER_ID": "admin",
-      "TOKEN": "secret_token",
-      "LINKEDIN_PAGE_URN": "[{\"name\": \"Tech Innovations\", \"urn\": \"urn:li:organization:456\", \"pic\": \"https://example.com/tech.png\"}, {\"name\": \"Design Hub\", \"urn\": \"urn:li:organization:789\", \"pic\": null}]"
-    }
-  }
-}
-EOF
 ```

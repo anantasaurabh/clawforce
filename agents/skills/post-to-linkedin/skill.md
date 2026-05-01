@@ -1,40 +1,29 @@
 ---
 name: post-to-linkedin
-version: 1.1.0
-description: Handles automated posting to personal and community LinkedIn pages via Node.js.
+version: 2.0.0
+description: Handles automated posting to LinkedIn via the Clawforce backend proxy.
 metadata: {"clawdbot": {"emoji": "⏫", "requires": {"bins": ["node"]}}, "entrypoint": "node scripts/post.js"}
 ---
 
-# LinkedIn Manager
+# LinkedIn Poster
 
-This tool allows the agent to post updates to LinkedIn. It supports both personal profiles and community pages using a secure JSON-over-stdin protocol.
+This tool allows agents to post updates to LinkedIn by proxying through the Clawforce backend.
 
-## Usage
+It uses **task-ID-based authentication** to resolve user tokens securely on the backend, preventing credential leakage on the agent environment.
 
-The agent determines the target based on the context:
-- **Personal**: Updates about your professional journey or personal projects.
-- **Community**: Formal company announcements or community-wide updates.
+## Parameters
 
-## Protocol
-The tool expects a JSON object via `stdin`:
-```json
-{
-  "params": {
-    "target": "personal",
-    "content": "The post text"
-  },
-  "context": {
-    "env": {
-      "LINKEDIN_PERSONAL_TOKEN": "...",
-      "LINKEDIN_PERSONAL_URN": "..."
-    }
-  }
-}
-```
+- **target** (string, optional): `personal` or `community`. Defaults to `personal`.
+- **content** (string, required): The post text.
+
+## Required Environment Variables
+
+- `OPENCLAW_TASK_ID` — The Firestore document ID of the active task.
+- `COLLECTION_NAME` — The Firestore collection path for the task.
+- `CLAWFORCE_BACKEND_URL` — Backend base URL.
 
 ## Example
-```bash
-node scripts/post.js <<EOF
+```json
 {
   "params": {
     "target": "personal",
@@ -42,10 +31,9 @@ node scripts/post.js <<EOF
   },
   "context": {
     "env": {
-      "LINKEDIN_PERSONAL_TOKEN": "your_token",
-      "LINKEDIN_PERSONAL_URN": "your_urn"
+      "OPENCLAW_TASK_ID": "task_abc",
+      "COLLECTION_NAME": "artifacts/clwhq-001/public/data/tasks"
     }
   }
 }
-EOF
 ```

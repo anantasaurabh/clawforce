@@ -308,7 +308,7 @@ async function publishToLinkedIn(post, auths) {
  * Publisher: Facebook
  */
 async function publishToFacebook(post, auths) {
-  const token = auths.FACEBOOK_TOKEN;
+  const token = auths.FACEBOOK_TOKEN || auths.FACEBOOK_ACCESS_TOKEN;
   const pageId = post.targetUrn || auths.FACEBOOK_PAGE_ID;
 
   if (!token) throw new Error('Missing FACEBOOK_TOKEN for authorization.');
@@ -317,19 +317,38 @@ async function publishToFacebook(post, auths) {
   console.log(`[Facebook] Posting to page ${pageId}...`);
 
   let finalToken = token;
-  try {
-    const pageRes = await axios.get(`https://graph.facebook.com/v19.0/${pageId}`, {
-      params: {
-        fields: 'access_token',
-        access_token: token
+  
+  // Try to find the page-specific token in FACEBOOK_PAGE_LIST if we have it
+  if (auths.FACEBOOK_PAGE_LIST) {
+    try {
+      const pages = JSON.parse(auths.FACEBOOK_PAGE_LIST);
+      const match = pages.find(p => p.id === pageId);
+      if (match && match.token) {
+        finalToken = match.token;
+        console.log(`[Facebook] Using cached Page Access Token for ${pageId}`);
       }
-    });
-    if (pageRes.data && pageRes.data.access_token) {
-      finalToken = pageRes.data.access_token;
-      console.log(`[Facebook] Retrieved Page Access Token for ${pageId}`);
+    } catch (e) {
+      console.warn(`[Facebook] Failed to parse FACEBOOK_PAGE_LIST:`, e.message);
     }
-  } catch (e) {
-    console.warn(`[Facebook] Failed to get page token, using default user token:`, e.message);
+  }
+
+  // If we haven't found a page token yet, or if we want to ensure we have the latest, 
+  // try to fetch it using the user token (only if finalToken is still the user token)
+  if (finalToken === token) {
+    try {
+      const pageRes = await axios.get(`https://graph.facebook.com/v19.0/${pageId}`, {
+        params: {
+          fields: 'access_token',
+          access_token: token
+        }
+      });
+      if (pageRes.data && pageRes.data.access_token) {
+        finalToken = pageRes.data.access_token;
+        console.log(`[Facebook] Retrieved Page Access Token for ${pageId} via API`);
+      }
+    } catch (e) {
+      console.warn(`[Facebook] Failed to get page token via API, using user token:`, e.message);
+    }
   }
 
   let url = `https://graph.facebook.com/v19.0/${pageId}/feed`;
@@ -365,7 +384,7 @@ async function publishToFacebook(post, auths) {
  * Publisher: Instagram
  */
 async function publishToInstagram(post, auths) {
-  const token = auths.INSTAGRAM_TOKEN || auths.FACEBOOK_TOKEN; 
+  const token = auths.INSTAGRAM_TOKEN || auths.INSTAGRAM_ACCESS_TOKEN || auths.FACEBOOK_TOKEN || auths.FACEBOOK_ACCESS_TOKEN; 
   const igUserId = post.targetUrn || auths.INSTAGRAM_USER_ID;
 
   if (!token) throw new Error('Missing access token for Instagram/Facebook graph.');

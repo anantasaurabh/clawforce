@@ -7,7 +7,9 @@ import {
   Loader2, 
   AlertCircle,
   Check,
-  RefreshCw
+  RefreshCw,
+  Bot,
+  Upload
 } from 'lucide-react';
 import { configService } from '../services/firestore';
 import { useAuth } from '../contexts/AuthContext';
@@ -25,6 +27,7 @@ export default function GlobalVars() {
   const [newKey, setNewKey] = useState('');
   const [newValue, setNewValue] = useState('');
   const [editedVars, setEditedVars] = useState({});
+  const [imagePreview, setImagePreview] = useState('');
   const [message, setMessage] = useState(null);
 
   const { isAdmin } = useAuth();
@@ -42,6 +45,7 @@ export default function GlobalVars() {
       delete cleaned.updatedAt;
       setVars(cleaned);
       setEditedVars(cleaned);
+      setImagePreview(data.SUPER_AGENT_IMAGE || '');
     } catch (err) {
       console.error(err);
       setMessage({ type: 'error', text: 'Failed to fetch global variables.' });
@@ -71,8 +75,9 @@ export default function GlobalVars() {
     try {
       setSaving(true);
       setMessage(null);
-      await configService.updateGlobalVars(editedVars);
-      setVars(editedVars);
+      const finalVars = { ...editedVars, SUPER_AGENT_IMAGE: imagePreview };
+      await configService.updateGlobalVars(finalVars);
+      setVars(finalVars);
       setMessage({ type: 'success', text: 'Global variables updated successfully.' });
       setTimeout(() => setMessage(null), 3000);
     } catch (err) {
@@ -113,7 +118,7 @@ export default function GlobalVars() {
           </button>
           <button
             onClick={handleSave}
-            disabled={saving || JSON.stringify(vars) === JSON.stringify(editedVars)}
+            disabled={saving || (JSON.stringify(vars) === JSON.stringify({ ...editedVars, SUPER_AGENT_IMAGE: imagePreview }) && vars.SUPER_AGENT_IMAGE === imagePreview)}
             className="flex items-center gap-2 px-8 py-3 bg-slate-900 text-white font-bold rounded-2xl hover:bg-slate-800 transition-all shadow-xl shadow-slate-900/20 disabled:opacity-50 disabled:shadow-none"
           >
             {saving ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}
@@ -131,6 +136,65 @@ export default function GlobalVars() {
           <span className="font-bold text-sm">{message.text}</span>
         </div>
       )}
+
+      {/* Super Agent Image Section */}
+      <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-[0_20px_50px_rgba(0,0,0,0.02)] p-8 flex flex-col md:flex-row items-center gap-8">
+        <div className="relative group">
+          <div className="w-32 h-32 rounded-3xl bg-slate-100 border-2 border-dashed border-slate-200 overflow-hidden flex items-center justify-center transition-all group-hover:border-brand-primary">
+            {imagePreview ? (
+              <img src={imagePreview} alt="Super Agent" className="w-full h-full object-cover" />
+            ) : (
+              <Bot size={40} className="text-slate-300" />
+            )}
+            <div 
+              onClick={() => document.getElementById('super-agent-upload').click()}
+              className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+            >
+              <Upload size={24} className="text-white" />
+            </div>
+          </div>
+          <input 
+            id="super-agent-upload"
+            type="file" 
+            className="hidden" 
+            accept="image/*"
+            onChange={(e) => {
+              const file = e.target.files[0];
+              if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                  const img = new Image();
+                  img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const size = 400; // 1:1 ratio
+                    canvas.width = size;
+                    canvas.height = size;
+                    const ctx = canvas.getContext('2d');
+                    
+                    // Center crop logic
+                    const minDim = Math.min(img.width, img.height);
+                    const sx = (img.width - minDim) / 2;
+                    const sy = (img.height - minDim) / 2;
+                    
+                    ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, size, size);
+                    const resizedBase64 = canvas.toDataURL('image/jpeg', 0.8);
+                    setImagePreview(resizedBase64);
+                  };
+                  img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+              }
+            }}
+          />
+        </div>
+        <div className="flex-1">
+          <h3 className="text-xl font-black text-slate-900">ClawForce Super Agent Profile</h3>
+          <p className="text-slate-500 font-medium text-sm mt-1">This 1:1 image will represent the AI in global system alerts and automated communications.</p>
+          <div className="mt-4 flex gap-2">
+            <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-100 uppercase tracking-widest">Recommended: 400x400 JPG/PNG</span>
+          </div>
+        </div>
+      </div>
 
       <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-[0_20px_50px_rgba(0,0,0,0.02)] overflow-hidden">
         <div className="overflow-x-auto">

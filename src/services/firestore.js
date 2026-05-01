@@ -183,7 +183,7 @@ export const catalogService = {
 };
 
 /**
- * User Configuration Services (Private)
+ * User Configuration Services
  */
 export const configService = {
   async getAgentSettings(userId, agentId) {
@@ -202,7 +202,7 @@ export const configService = {
   },
 
   async getSharedParameters(userId) {
-    const data = await this.getUserConfig(userId);
+    const data = await configService.getUserConfig(userId);
     return data?.sharedParameters || {};
   },
 
@@ -242,8 +242,32 @@ export const configService = {
     return snap.exists() ? snap.data() : {};
   },
 
+  subscribeGlobalVars(callback) {
+    const ref = doc(db, COLLECTIONS.GLOBAL_VARS, 'settings');
+    return onSnapshot(ref, (snapshot) => {
+      callback(snapshot.exists() ? snapshot.data() : {});
+    });
+  },
+
   async updateGlobalVars(data) {
     const ref = doc(db, COLLECTIONS.GLOBAL_VARS, 'settings');
+    await setDoc(ref, {
+      ...data,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+  },
+
+  async getCompanyInfo(userId) {
+    const data = await configService.getUserConfig(userId);
+    return {
+      companyInfo: data?.companyInfo || '',
+      icp: data?.icp || '',
+      companyId: data?.companyId || userId // Use userId as default companyId
+    };
+  },
+
+  async updateCompanyInfo(userId, data) {
+    const ref = doc(db, `artifacts/clwhq-001/userConfigs`, userId);
     await setDoc(ref, {
       ...data,
       updatedAt: serverTimestamp()
@@ -266,6 +290,21 @@ export const taskService = {
       progress: 0,
       startTime: serverTimestamp(),
       metadata
+    });
+    return docRef.id;
+  },
+
+  async createSilentOperation(userId, agentId, title, description = '', metadata = {}) {
+    const tasksRef = collection(db, COLLECTIONS.SILENT_TASKS);
+    const docRef = await addDoc(tasksRef, {
+      title,
+      description,
+      agentId,
+      ownerId: userId,
+      status: 'enqueued',
+      progress: 0,
+      startTime: serverTimestamp(),
+      metadata: { ...metadata, isSilent: true }
     });
     return docRef.id;
   },

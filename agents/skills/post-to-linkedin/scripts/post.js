@@ -1,175 +1,104 @@
 import fs from 'fs';
 import https from 'https';
+import http from 'http';
+import { URL } from 'url';
 
-// 1. Read input from OpenClaw (JSON over Stdin)
-const rawInput = fs.readFileSync(0, 'utf8');
-
-if (!rawInput) {
-    sendError("No input received from OpenClaw.");
+// 1. Read input from OpenClaw (Flexible: Arg > File > Stdin)
+let rawInput = '';
+if (process.argv[2]) {
+    const arg = process.argv[2];
+    if (fs.existsSync(arg)) {
+        rawInput = fs.readFileSync(arg, 'utf8');
+    } else {
+        rawInput = arg;
+    }
+} else {
+    try {
+        rawInput = fs.readFileSync(0, 'utf8');
+    } catch (e) {}
 }
 
-try {
-    const data = JSON.parse(rawInput);
-    const params = data.params || {};
-    const env = data.context?.env || {};
+if (!rawInput || !rawInput.trim()) {
+    console.log(JSON.stringify({ status: "error", message: "No input received." }));
+    process.exit(1);
+}
 
-    const target = params.target || 'personal';
-    const content = params.content;
-
-    // 2. Credential Validation & Selection (With fallback to process.env)
-    const getEnv = (key) => env[key] || process.env[key];
-
-    let token = null;
-    let tokenKey = "NONE";
-
-    const findToken = (keys) => {
-        for (const k of keys) {
-            const val = getEnv(k);
-            if (val && !val.includes("your_")) {
-                tokenKey = k;
-                return val;
+function postJson(backendUrl, path, payload) {
+    return new Promise((resolve, reject) => {
+        const body = JSON.stringify(payload);
+        const url = new URL(`${backendUrl.replace(/\/$/, '')}${path}`);
+        const protocol = url.protocol === 'https:' ? https : http;
+        const options = {
+            hostname: url.hostname,
+            port: url.port || (url.protocol === 'https:' ? 443 : 80),
+            path: url.pathname,
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(body)
             }
-        }
-        return null;
-    };
-
-    let urn = null;
-    let urnKey = "NONE";
-
-    // Helper to extract URN from potential JSON array or raw string
-    const resolveUrn = (val) => {
-        if (!val) return null;
-        if (typeof val === 'string' && val.startsWith('[')) {
-            try {
-                const arr = JSON.parse(val);
-                return arr[0]?.urn;
-            } catch (e) { return val; }
-        }
-        return val;
-    };
-
-    if (target === 'personal') {
-        token = findToken(['LINKEDIN_SOCIAL_TOKEN', 'linkedin_social_token', 'LINKEDIN_PERSONAL_TOKEN', 'linkedin_personal_token']);
-        // Priority: Use the URN that matches our chosen token provider to avoid mismatch
-        const personalUrnKeys = (tokenKey.includes('SOCIAL'))
-            ? ['linkedin_social_personal_urn', 'LINKEDIN_SOCIAL_URN', 'LINKEDIN_PERSONAL_URN']
-            : ['LINKEDIN_PERSONAL_URN', 'linkedin_personal_urn', 'LINKEDIN_SOCIAL_URN'];
-
-        const rawUrn = findToken(personalUrnKeys);
-        urn = resolveUrn(rawUrn);
-        urnKey = rawUrn ? "LINKEDIN_URN_RESOLVED" : "NONE";
-    } else {
-        // Community/Organization Target
-        token = findToken(['LINKEDIN_COMMUNITY_TOKEN', 'LINKEDIN_SOCIAL_TOKEN', 'linkedin_social_token']);
-
-        // Check if explicit community URN is valid (not a placeholder)
-        const explicitUrn = getEnv('LINKEDIN_COMMUNITY_URN');
-        const isExplicitValid = explicitUrn && !explicitUrn.includes('your_');
-
-        if (isExplicitValid) {
-            urn = explicitUrn;
-            urnKey = "LINKEDIN_COMMUNITY_URN";
-        } else {
-            const pageUrnRaw = getEnv('LINKEDIN_PAGE_URN') || getEnv('linkedin_social_urn');
-            if (pageUrnRaw) {
-                urnKey = "LINKEDIN_PAGE_URN";
-                try {
-                    const pages = JSON.parse(pageUrnRaw);
-                    if (Array.isArray(pages) && pages.length > 0) {
-                        urn = pages[0].urn;
-                    }
-                } catch (e) {
-                    urn = pageUrnRaw; // Fallback to raw string
-                }
-            }
-        }
-    }
-
-    // Clean prefix for organization URNs if they contain the full URN string
-    // but the API expects just the ID part (or vice versa)
-    // Actually, ugcPosts author usually wants the full URN.
-    // However, our code was stripping it before. 
-    // Let's ensure we have the numeric part if needed, but usually full URN is safer.
-    // Preserve full URN if available
-
-    // Final sanity check for placeholders or missing values
-    const isTokenPlaceholder = typeof token === 'string' && token.includes("your_");
-    const isUrnPlaceholder = typeof urn === 'string' && urn.includes("your_");
-
-    if (!token || !urn || isTokenPlaceholder || isUrnPlaceholder) {
-        sendError(`Missing ${target} credentials. Please authorize LinkedIn Social in System Parameters or set explicit Community Tokens.`, "AUTH_FAILURE");
-    }
-
-    // Masked token for logging
-    const maskedToken = typeof token === 'string' ? (token.substring(0, 5) + "..." + token.substring(token.length - 5)) : "N/A";
-    const fullUrn = target === 'personal' ? `urn:li:person:${urn}` : `urn:li:organization:${urn}`;
-
-    console.log(JSON.stringify({
-        type: "log",
-        content: `Initiating post to ${target} URN: ${fullUrn} (via ${urnKey}). Using token from ${tokenKey} (${maskedToken})`
-    }));
-
-    // 3. Post to LinkedIn using native https (no dependencies needed)
-    const authorUrn = urn.includes(':') ? urn : (target === 'personal' ? `urn:li:person:${urn}` : `urn:li:organization:${urn}`);
-
-    const postData = JSON.stringify({
-        author: authorUrn,
-        lifecycleState: "PUBLISHED",
-        specificContent: {
-            "com.linkedin.ugc.ShareContent": {
-                shareCommentary: { text: content },
-                shareMediaCategory: "NONE"
-            }
-        },
-        visibility: { "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC" }
+        };
+        const req = protocol.request(options, (res) => {
+            let data = '';
+            res.on('data', (d) => data += d);
+            res.on('end', () => resolve({ statusCode: res.statusCode, body: data }));
+        });
+        req.on('error', reject);
+        req.write(body);
+        req.end();
     });
+}
 
-    const options = {
-        hostname: 'api.linkedin.com',
-        path: '/v2/ugcPosts',
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-            'X-Restli-Protocol-Version': '2.0.0',
-            'Content-Length': Buffer.byteLength(postData)
+(async () => {
+    try {
+        const data = JSON.parse(rawInput);
+        const params = data.params || {};
+        const env = data.context?.env || {};
+
+        const target = params.target || 'personal';
+        const content = params.content;
+        const backendUrl = env.CLAWFORCE_BACKEND_URL || env.clawforce_backend_url
+            || process.env.CLAWFORCE_BACKEND_URL
+            || 'https://dev-backend-clawforce.altovation.in';
+
+        const taskId = env.OPENCLAW_TASK_ID || process.env.OPENCLAW_TASK_ID;
+        const collectionName = env.COLLECTION_NAME || process.env.COLLECTION_NAME;
+
+        if (!content) {
+            console.log(JSON.stringify({ status: "error", message: "No content provided." }));
+            process.exit(1);
         }
-    };
 
-    const req = https.request(options, (res) => {
-        let body = '';
-        res.on('data', (d) => body += d);
-        res.on('end', () => {
-            if (res.statusCode === 201 || res.statusCode === 200) {
-                let link = null;
-                try {
-                    const response = JSON.parse(body);
-                    if (response.id) {
-                        // Construct the public URL from the URN
-                        link = `https://www.linkedin.com/feed/update/${response.id}`;
-                    }
-                } catch (e) { }
+        if (taskId) {
+            console.error(`[post-linkedin] PRIMARY: calling /api/linkedin/post-by-task`);
+            const result = await postJson(backendUrl, '/api/linkedin/post-by-task', {
+                taskId,
+                collectionName,
+                target,
+                content
+            });
 
+            if (result.statusCode === 200 || result.statusCode === 201) {
+                const responseJson = JSON.parse(result.body);
                 console.log(JSON.stringify({
                     status: "success",
-                    message: `Successfully posted to LinkedIn ${target}.`,
-                    link: link
+                    message: `Successfully posted to LinkedIn ${target} via task-based endpoint.`,
+                    link: responseJson.link
                 }));
+                process.exit(0);
             } else {
-                sendError(`LinkedIn API returned ${res.statusCode}: ${body}`, res.statusCode.toString());
+                console.error(`[post-linkedin] Primary path failed (${result.statusCode}): ${result.body}`);
             }
-        });
-    });
+        }
 
-    req.on('error', (e) => sendError(e.message));
-    req.write(postData);
-    req.end();
+        console.log(JSON.stringify({ 
+            status: "error", 
+            message: "Authentication failed. Task ID is missing and legacy direct posting is disabled for security." 
+        }));
+        process.exit(1);
 
-} catch (err) {
-    sendError("Failed to parse OpenClaw JSON payload: " + err.message);
-}
-
-function sendError(message, code = "INTERNAL_ERROR") {
-    console.log(JSON.stringify({ status: "error", error_code: code, message: message }));
-    process.exit(1); // Force OpenClaw to recognize the failure
-}
+    } catch (err) {
+        console.log(JSON.stringify({ status: "error", message: "Failed to process request: " + err.message }));
+        process.exit(1);
+    }
+})();
